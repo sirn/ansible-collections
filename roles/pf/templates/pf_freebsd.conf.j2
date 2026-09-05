@@ -1,0 +1,92 @@
+set skip on lo0
+
+# Normalization
+scrub in all no-df random-id max-mss 1440 fragment reassemble
+
+# Translation
+{% for iface in pf_ipv4_ifaces %}
+{% if "forwarded_ports" in iface %}
+{% for spec in iface.forwarded_ports %}
+rdr pass on {{ iface.iface }} inet proto {{ spec.proto }} from {{ spec.source if "source" in spec and spec.source else "any" }} to {{ spec.to_address if "to_address" in spec else iface.iface }} port {{ spec.to_port }} -> {{ spec.dest_address }} port {{ spec.dest_port }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for iface in pf_ipv6_ifaces %}
+{% if "forwarded_ports" in iface %}
+{% for spec in iface.forwarded_ports %}
+rdr pass on {{ iface.iface }} inet6 proto {{ spec.proto }} from {{ spec.source if "source" in spec and spec.source else "any" }} to {{ spec.to_address if "to_address" in spec else iface.iface }} port {{ spec.to_port }} -> {{ spec.dest_address }} port {{ spec.dest_port }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for anchor in pf_rdr_anchors_single %}
+rdr-anchor {{ anchor }}
+{% endfor %}
+{% for anchor in pf_rdr_anchors %}
+rdr-anchor "{{ anchor }}/*"
+{% endfor %}
+{% for iface in pf_ipv4_ifaces %}
+{% if "nat" in iface %}
+{% for spec in iface.nat %}
+nat on {{ iface.iface }} from {{ spec }} to any -> ({{ iface.iface }})
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for anchor in pf_nat_anchors_single %}
+nat-anchor {{ anchor }}
+{% endfor %}
+{% for anchor in pf_nat_anchors %}
+nat-anchor "{{ anchor }}/*"
+{% endfor %}
+
+# Filtering
+block return
+{% if pf_ipv4_ifaces %}
+
+icmp_types="{ echoreq }"
+{% for iface in pf_ipv4_ifaces %}
+{% if "pass" in iface and iface.pass %}
+pass in on {{ iface.iface }} inet all
+{% else %}
+pass in on {{ iface.iface }} inet proto icmp all icmp-type $icmp_types keep state
+{% if pf_ssh_port and "allow_ssh" in iface and iface.allow_ssh %}
+pass in on {{ iface.iface }} inet proto tcp from any to any port {{ pf_ssh_port }} keep state
+{% endif %}
+{% if "allowed_ports" in iface %}
+{% for spec in iface.allowed_ports %}
+pass in on {{ iface.iface }} inet{% if "proto" in spec %} proto {{ spec.proto }}{% endif %} from {{ spec.source if "source" in spec and spec.source else "any" }} to {{ spec.to_address if "to_address" in spec else "any" }}{% if "to_port" in spec %} port {{ spec.to_port }}{% endif %} keep state
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+pass out inet all flags any keep state
+{% endif %}
+{% if pf_ipv6_ifaces %}
+
+icmp6_types="{ 128, 133, 134, 135, 136, 137 }"
+{% for iface in pf_ipv6_ifaces %}
+{% if "pass" in iface and iface.pass %}
+pass in on {{ iface.iface }} inet6 all
+{% else %}
+pass in on {{ iface.iface }} inet6 proto icmp6 all icmp6-type $icmp6_types keep state
+{% if pf_ssh_port and "allow_ssh" in iface and iface.allow_ssh %}
+pass in on {{ iface.iface }} inet6 proto tcp from any to any port {{ pf_ssh_port }} keep state
+{% endif %}
+{% if "allowed_ports" in iface %}
+{% for spec in iface.allowed_ports %}
+pass in on {{ iface.iface }} inet6{% if "proto" in spec %} proto {{ spec.proto }}{% endif %} from {{ spec.source if "source" in spec and spec.source else "any" }} to {{ spec.to_address if "to_address" in spec else "any" }}{% if "to_port" in spec %} port {{ spec.to_port }}{% endif %} keep state
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+pass out inet6 all flags any keep state
+{% endif %}
+{% if pf_anchors or pf_anchors_single %}
+
+# Anchors
+{% for anchor in pf_anchors_single %}
+anchor {{ anchor }}
+{% endfor %}
+{% for anchor in pf_anchors %}
+anchor "{{ anchor }}/*"
+{% endfor %}
+{% endif %}

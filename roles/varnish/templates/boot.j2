@@ -1,0 +1,6 @@
+{% for label in varnish_labels %}
+vcl.load vcl_{{ label.label }} {{ varnish_prefix }}/config/label_{{ label.label }}.vcl
+vcl.label label_{{ label.label }} vcl_{{ label.label }}
+{% endfor %}
+vcl.load vcl_main {{ varnish_prefix }}/config/main.vcl
+vcl.use vcl_main

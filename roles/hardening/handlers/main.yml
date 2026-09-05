@@ -1,0 +1,42 @@
+---
+- name: enable accounting
+  become: true
+  ansible.builtin.command: accton /var/account/acct
+  register: enable_accounting
+  changed_when: enable_accounting is succeeded
+  failed_when: enable_accounting is not succeeded
+
+- name: reload sshd
+  become: true
+  ansible.builtin.service:
+    name: sshd
+    state: reloaded
+  register: reload_sshd
+  changed_when: reload_sshd is succeeded
+  failed_when: reload_sshd is not succeeded
+
+- name: restart sysctl
+  become: true
+  ansible.builtin.service:
+    name: sysctl
+    state: restarted
+  register: restart_sysctl
+  changed_when: restart_sysctl is succeeded
+  failed_when: restart_sysctl is not succeeded
+
+- name: reboot system
+  become: true
+  ansible.builtin.shell: sleep 2 && shutdown -r now "Maintenance reboot"
+  async: 0
+  poll: 0
+  register: reboot_system
+  changed_when: reboot_system is succeeded
+  failed_when: reboot_system is not succeeded
+
+- name: wait for system reboot
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600
+  register: wait_for_system_reboot
+  changed_when: wait_for_system_reboot is succeeded
+  failed_when: wait_for_system_reboot is not succeeded

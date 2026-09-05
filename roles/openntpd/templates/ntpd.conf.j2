@@ -1,0 +1,7 @@
+{% for server in openntpd_servers %}
+servers {{server}}
+{% endfor %}
+sensor *
+{% for constraint in openntpd_constraints %}
+constraints from "{{constraint}}"
+{% endfor %}

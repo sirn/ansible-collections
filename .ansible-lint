@@ -1,0 +1,13 @@
+---
+skip_list:
+  - role-name
+  - name[casing]
+  # Shared s6 flag plus register variables carried over from the source roles.
+  - var-naming[no-role-prefix]
+  # Legacy command-handler and task patterns preserved from the source roles.
+  - no-changed-when
+  - risky-file-permissions
+  - no-handler
+  - ignore-errors
+  - command-instead-of-shell
+  - risky-shell-pipe

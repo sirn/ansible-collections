@@ -1,0 +1,179 @@
+---
+## Install
+##
+
+- name: install dehydrated
+  become: true
+  community.general.pkgng:
+    name:
+      - dehydrated
+      - py{{ dehydrated_python_version | replace(".", "") }}-dns-lexicon
+      - py{{ dehydrated_python_version | replace(".", "") }}-dnspython
+      - snooze
+    state: latest
+  notify:
+    - restart dehydrated
+
+## Setup user
+##
+
+- name: create dehydrated group
+  become: true
+  ansible.builtin.group:
+    name: "{{ dehydrated_group }}"
+    system: true
+    state: present
+  when: dehydrated_group_create
+
+- name: create dehydrated user
+  become: true
+  ansible.builtin.user:
+    name: "{{ dehydrated_user }}"
+    home: "{{ dehydrated_prefix }}"
+    state: present
+    shell: /sbin/nologin
+    system: true
+    create_home: false
+    groups:
+      - "{{ dehydrated_group }}"
+  when: dehydrated_user_create
+
+- name: add extra users to dehydrated group
+  become: true
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups:
+      - "{{ dehydrated_group }}"
+    append: true
+    create_home: false
+  with_items: "{{ dehydrated_group_extra_users }}"
+
+- name: ensure dehydrated directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: dehydrated
+    group: dehydrated
+    mode: "0750"
+  with_items:
+    - "{{ dehydrated_prefix }}"
+    - "{{ dehydrated_prefix }}/certs"
+
+## Setup wrapper script
+##
+
+- name: install dehydrated wrapper script
+  become: true
+  ansible.builtin.template:
+    src: wrapper.sh.j2
+    dest: "{{ dehydrated_prefix }}/wrapper.sh"
+    owner: "{{ dehydrated_user }}"
+    group: "{{ dehydrated_group }}"
+    mode: "0700"
+
+## Configure
+##
+
+- name: configure dehydrated hook script
+  become: true
+  ansible.builtin.template:
+    src: hook.sh.j2
+    dest: "{{ dehydrated_prefix }}/hook.sh"
+    owner: "{{ dehydrated_user }}"
+    group: "{{ dehydrated_group }}"
+    mode: "0700"
+
+- name: configure dehydrated domains
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ dehydrated_prefix }}/domains.txt"
+    owner: "{{ dehydrated_user }}"
+    group: "{{ dehydrated_group }}"
+    mode: "0500"
+    content: |
+      {% if dehydrated_domains %}
+      {% for domain in dehydrated_domains %}
+      {{ domain }}
+      {% endfor %}
+      {% endif %}
+
+- name: configure dehydrated
+  become: true
+  ansible.builtin.template:
+    src: config.j2
+    dest: "{{ dehydrated_prefix }}/config"
+    owner: "{{ dehydrated_user }}"
+    group: "{{ dehydrated_group }}"
+    mode: "0500"
+
+## Setup
+##
+
+- name: setup letsencrypt account
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    ACCOUNT_FILE=$(
+      dehydrated -e |
+      awk '/declare -- ACCOUNT_KEY=/ {
+        print substr($3, 14, length($3)-14)
+      }'
+    )
+    if test -e $ACCOUNT_FILE; then
+      exit 0
+    fi
+    dehydrated --register --accept-terms
+    chown -R dehydrated:dehydrated {{ dehydrated_prefix }}
+    exit 255
+  register: letsencrypt_account_create
+  changed_when: letsencrypt_account_create.rc == 255
+  failed_when: |
+    letsencrypt_account_create.rc > 0 and
+    letsencrypt_account_create.rc < 255
+
+- name: setup initial letsencrypt certs
+  become: true
+  ansible.builtin.command: "sh {{ dehydrated_prefix }}/wrapper.sh"
+  register: letsencrypt_initial_cert
+  changed_when: letsencrypt_initial_cert.stdout.find("unchanged_cert") == -1
+
+## Supervise
+##
+
+- name: ensure dehydrated service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/dehydrated
+    - /var/service/dehydrated/log
+
+- name: install dehydrated service
+  become: true
+  ansible.builtin.template:
+    src: dehydrated.j2
+    dest: /var/service/dehydrated/run
+    mode: "0555"
+  notify:
+    - rescan dehydrated s6
+    - restart dehydrated
+
+- name: install dehydrated log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/dehydrated/log/run
+    mode: "0555"
+    content: "{{ dehydrated_logger }}"
+  notify:
+    - rescan dehydrated s6
+    - restart dehydrated logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

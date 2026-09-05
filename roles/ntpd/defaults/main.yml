@@ -1,0 +1,5 @@
+---
+ntpd_pools:
+  - pool.ntp.org
+
+ntpd_servers:

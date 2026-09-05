@@ -1,0 +1,20 @@
+---
+hitch_backend_address: "[127.0.0.1]:80"
+
+hitch_drop_privileges_early: false
+
+hitch_enable_proxy_v2: true
+
+hitch_frontends:
+  - address: "*"
+    port: "443"
+    dehydrated_certs:
+      - example.com
+
+hitch_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/hitch/
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

@@ -1,0 +1,147 @@
+---
+## Install
+##
+
+- name: install sanoid
+  become: true
+  community.general.pkgng:
+    name:
+      - sanoid
+      - snooze
+    state: latest
+  notify:
+    - restart sanoid
+
+## Configure
+##
+
+- name: configure sanoid
+  become: true
+  ansible.builtin.template:
+    src: sanoid.conf.j2
+    dest: "/usr/local/etc/sanoid/sanoid.conf"
+    owner: "root"
+    group: "wheel"
+    mode: "0644"
+  tags:
+    - sanoidconfig
+  notify:
+    - restart sanoid
+
+- name: create sanoid state directory
+  become: true
+  ansible.builtin.file:
+    dest: "{{ sanoid_prefix }}"
+    state: directory
+    mode: "0755"
+  tags:
+    - sanoidconfig
+
+## Syncoid integration
+##
+
+- name: enable syncoid integration
+  ansible.builtin.include_tasks:
+    file: "syncoid.yml"
+  when: "sanoid_syncoid"
+
+## Hooks
+##
+
+- name: ensure sanoid hooks directory
+  become: true
+  ansible.builtin.file:
+    dest: "{{ sanoid_prefix }}/hooks"
+    state: directory
+    mode: "0700"
+  tags:
+    - sanoidhooks
+
+- name: setup sanoid hooks
+  ansible.builtin.set_fact:
+    sanoid_hooks:
+      - pre_snapshot
+      - post_snapshot
+      - pruning
+  tags:
+    - sanoidhooks
+
+- name: generate sanoid dataset hooks
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ hook_path }}"
+    mode: "0700"
+    content: |
+      #!/bin/sh
+      set -e
+      {{ item.0.options[k] }}
+  loop: '{{ sanoid_datasets | product(sanoid_hooks) | list }}'
+  loop_control:
+    label: "{{ hook_path }}"
+  when: '"options" in item.0 and k in item.0.options and item.0.options[k]'
+  vars:
+    k: "{{ item.1 }}_script"
+    hook_filename: '{{ item.0.name | replace("/", "__") }}_{{ item.1 }}.sh'
+    hook_path: "{{ sanoid_prefix }}/hooks/{{ hook_filename }}"
+  tags:
+    - sanoidhooks
+
+- name: generate sanoid template hooks
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ hook_path }}"
+    mode: "0700"
+    content: |
+      #!/bin/sh
+      set -e
+      {{ item.0.options[k] }}
+  loop: '{{ sanoid_templates | product(sanoid_hooks) | list }}'
+  loop_control:
+    label: "{{ hook_path }}"
+  when: '"options" in item.0 and k in item.0.options and item.0.options[k]'
+  vars:
+    k: "{{ item.1 }}_script"
+    hook_filename: 'template_{{ item.0.name }}_{{ item.1 }}.sh'
+    hook_path: "{{ sanoid_prefix }}/hooks/{{ hook_filename }}"
+  tags:
+    - sanoidhooks
+
+## Supervise
+##
+
+- name: ensure sanoid service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /var/service/sanoid
+    - /var/service/sanoid/log
+
+- name: install sanoid service
+  become: true
+  ansible.builtin.template:
+    src: sanoid.j2
+    dest: /var/service/sanoid/run
+    mode: "0555"
+  notify:
+    - rescan sanoid s6
+    - restart sanoid
+
+- name: install sanoid log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/sanoid/log/run
+    mode: "0555"
+    content: "{{ sanoid_logger }}"
+  notify:
+    - rescan sanoid s6
+    - restart sanoid logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

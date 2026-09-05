@@ -1,0 +1,67 @@
+---
+sanoid_datasets: []
+# - name: zroot/home
+#   options:
+#     use_template: template1
+#     recursive: true
+#     process_children_only: true
+#     pre_snapshot_script: |
+#       mysql <<-EOF
+#       FLUSH TABLES WITH READ LOCK;
+#       EOF
+#     post_snapshot_script: |
+#       mysql <<-EOF
+#       UNLOCK TABLES;
+#       EOF
+
+sanoid_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/sanoid/
+
+sanoid_prefix: /var/sanoid
+
+sanoid_snooze_args: "-d* -H* -v"
+
+sanoid_syncoid: false
+
+sanoid_syncoid_compress: zstd-slow
+
+sanoid_syncoid_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/sanoid-syncoid/
+
+sanoid_syncoid_remote: ""
+
+sanoid_syncoid_targets: []
+# - source: zroot/var/mysql
+#   dest: data1/backups/mysql
+#   delete_target_snapshots: true
+#
+# - source: zroot/var/www
+#   dest: data1/backups/www
+#   delete_target_snapshots: true
+
+sanoid_syncoid_prefix: "{{ sanoid_prefix }}/syncoid"
+
+# yamllint disable-line rule:line-length
+sanoid_syncoid_ssh_keyfile: "{{ sanoid_syncoid_prefix }}/id_{{ sanoid_syncoid_ssh_keytype }}"
+
+sanoid_syncoid_ssh_keytype: ed25519
+
+sanoid_syncoid_ssh_keygen: true
+
+sanoid_syncoid_snooze_args: "-d* -H* -M30 -v"
+
+sanoid_templates: []
+# - name: template1
+#   options:
+#     frequently: 0
+#     hourly: 24
+#     daily: 7
+#     weekly: 5
+#     monthly: 12
+#     yearly: 1
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

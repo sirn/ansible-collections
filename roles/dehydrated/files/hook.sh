@@ -1,0 +1,79 @@
+#!/bin/sh -e
+
+PROVIDER_UPDATE_DELAY=${PROVIDER_UPDATE_DELAY:-"30"}
+PROVIDER=${PROVIDER:-"cloudflare"}
+LEXICON=${LEXICON:-"lexicon"}
+
+deploy_challenge() {
+    DOMAIN="$1"
+    TOKEN_FILENAME="$2"
+    TOKEN_VALUE="$3"
+    DELAY_COUNTDOWN=$PROVIDER_UPDATE_DELAY
+
+    echo "deploy_challenge called: $DOMAIN, $TOKEN_FILENAME, $TOKEN_VALUE"
+    eval "$LEXICON" "$PROVIDER" create "$DOMAIN" TXT --name="_acme-challenge.$DOMAIN." --content="$TOKEN_VALUE"
+
+    while [ "$DELAY_COUNTDOWN" -gt 0 ]; do
+        printf "%s\\033[0K\\r" "$DELAY_COUNTDOWN"
+        sleep 1
+        DELAY_COUNTDOWN=$((DELAY_COUNTDOWN-1))
+    done
+}
+
+clean_challenge() {
+    DOMAIN="$1"
+    TOKEN_FILENAME="$2"
+    TOKEN_VALUE="$3"
+
+    echo "clean_challenge called: $DOMAIN, $TOKEN_FILENAME, $TOKEN_VALUE"
+    eval "$LEXICON" "$PROVIDER" delete "$DOMAIN" TXT --name="_acme-challenge.$DOMAIN." --content="$TOKEN_VALUE"
+}
+
+invalid_challenge() {
+    DOMAIN="$1"
+    RESPONSE="$2"
+    echo "invalid_challenge called: $DOMAIN, $RESPONSE"
+}
+
+deploy_cert() {
+    DOMAIN="$1"
+    KEYFILE="$2"
+    CERTFILE="$3"
+    FULLCHAINFILE="$4"
+    CHAINFILE="$5"
+    DIRNAME="$(dirname "$FULLCHAINFILE")"
+    DHFILE="$DIRNAME/dhparam"
+    FULLBUNDLE="$DIRNAME/fullbundle.pem"
+
+    echo "deploy_cert called: $DOMAIN, $KEYFILE, $CERTFILE, $FULLCHAINFILE, $CHAINFILE"
+    if [ ! -e "$DIRNAME/dhparam" ]; then
+        openssl dhparam -out /dev/stdout 2048 > "$DHFILE"
+    fi
+
+    cat "$KEYFILE" "$CERTFILE" "$CHAINFILE" "$DHFILE" | awk '! /^$/ { print }' > "$FULLBUNDLE"
+    chmod 640 "$KEYFILE" "$CERTFILE" "$CHAINFILE" "$FULLCHAINFILE" "$DHFILE" "$FULLBUNDLE"
+    chmod -h 750 "$KEYFILE" "$CERTFILE" "$CHAINFILE" "$FULLCHAINFILE" "$DIRNAME"
+}
+
+unchanged_cert() {
+    DOMAIN="$1"
+    KEYFILE="$2"
+    CERTFILE="$3"
+    FULLCHAINFILE="$4"
+    CHAINFILE="$5"
+    echo "unchanged_cert called: $DOMAIN, $KEYFILE, $CERTFILE, $FULLCHAINFILE, $CHAINFILE"
+}
+
+exit_hook() {
+    :
+}
+
+startup_hook() {
+    :
+}
+
+HANDLER=$1; shift;
+
+if [ "$(command -v "$HANDLER")x" != "x" ]; then
+    $HANDLER "$@"
+fi

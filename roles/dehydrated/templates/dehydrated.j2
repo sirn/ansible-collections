@@ -1,0 +1,12 @@
+#!/usr/local/bin/execlineb -P
+fdmove -c 2 1
+redirfd -r 0 /dev/null
+
+snooze -d/7 -v -t /usr/local/etc/dehydrated/timefile
+
+if {
+  export LANG en_US.UTF-8
+  sh /usr/local/etc/dehydrated/wrapper.sh
+}
+
+touch /usr/local/etc/dehydrated/timefile

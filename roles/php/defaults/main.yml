@@ -1,0 +1,46 @@
+---
+php_fpm_address: 0.0.0.0:9000
+
+php_fpm_config:
+
+php_fpm_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/php-fpm/
+
+php_fpm_pm: dynamic
+
+php_fpm_max_children: 5
+
+php_fpm_max_requests: 1000
+
+php_fpm_max_spare_servers: 3
+
+php_fpm_min_spare_servers: 1
+
+php_fpm_start_servers: 2
+
+php_fpm_version: php82
+
+php_opcache_interned_strings_buffer: 8
+
+php_opcache_max_accelerated_files: 10000
+
+php_opcache_memory_consumption: 128
+
+php_opcache_revalidate_freq: 2
+
+php_opcache_validate_timestamp: 1
+
+php_max_execution_time: 120
+
+php_max_input_time: 60
+
+php_memory_limit: 512M
+
+php_post_max_size: 144M
+
+php_upload_max_filesize: 128M
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

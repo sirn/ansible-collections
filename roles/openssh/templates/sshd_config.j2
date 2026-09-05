@@ -1,0 +1,16 @@
+Port {{openssh_port}}
+AddressFamily any
+{% for address in openssh_addresses %}
+ListenAddress {{address}}
+{% endfor %}
+
+AllowAgentForwarding {{ "yes" if openssh_allow_agent_forwarding else "no" }}
+AllowTcpForwarding {{ "yes" if openssh_allow_tcp_forwarding else "no" }}
+PermitRootLogin no
+PidFile none
+PrintMotd {{ "yes" if openssh_print_motd else "no" }}
+UseDNS no
+
+{% if openssh_enable_sftp %}
+Subsystem sftp /usr/local/libexec/sftp-server
+{% endif %}

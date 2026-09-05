@@ -1,0 +1,24 @@
+---
+openssh_addresses:
+  - "0.0.0.0"
+  - "::"
+
+openssh_allow_agent_forwarding: true
+
+openssh_allow_tcp_forwarding: true
+
+openssh_copy_host_keys: false
+
+openssh_enable_sftp: false
+
+openssh_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/openssh/
+
+openssh_port: 22
+
+openssh_print_motd: true
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

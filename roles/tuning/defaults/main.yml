@@ -1,0 +1,10 @@
+---
+tuning_cc_algorithm: htcp
+
+tuning_disable_tsc_calibration: false
+
+tuning_vfs_usermount: false
+
+tuning_soacceptqueue: 1024
+
+tuning_lro_disable: false

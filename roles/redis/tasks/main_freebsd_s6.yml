@@ -1,0 +1,92 @@
+---
+## Install
+##
+
+- name: install redis
+  become: true
+  community.general.pkgng:
+    name: redis
+    state: latest
+  notify:
+    - restart redis
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: redis
+    state: stopped
+    enabled: false
+
+## Configure
+##
+
+- name: ensure redis data directory
+  become: true
+  ansible.builtin.file:
+    dest: "{{ redis_snapshot_dir }}"
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0700"
+
+- name: ensure redis run directory
+  become: true
+  ansible.builtin.file:
+    path: /var/run/redis
+    owner: redis
+    group: redis
+    state: directory
+    mode: "0755"
+
+- name: configure redis
+  become: true
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /usr/local/etc/redis.conf
+    mode: "0644"
+  notify:
+    - restart redis
+
+## Supervise
+##
+
+- name: ensure redis service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/redis
+    - /var/service/redis/log
+
+- name: install redis service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/redis/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      s6-setuidgid redis
+      fdmove -c 2 1
+      /usr/local/bin/redis-server /usr/local/etc/redis.conf
+  notify:
+    - rescan redis s6
+    - restart redis
+
+- name: install redis log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/redis/log/run
+    mode: "0555"
+    content: "{{ redis_logger }}"
+  notify:
+    - rescan redis s6
+    - restart redis logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

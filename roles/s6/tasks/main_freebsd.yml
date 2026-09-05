@@ -1,0 +1,39 @@
+---
+## Installation
+##
+
+- name: install s6 and execline
+  become: true
+  community.general.pkgng:
+    name:
+      - execline
+      - s6
+    state: present
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.lineinfile:
+    dest: /etc/ttys
+    regexp: "^sv "
+    state: absent
+  notify:
+    - reboot system
+    - wait for system reboot
+
+## Enable S6
+##
+
+- name: enable s6
+  become: true
+  ansible.builtin.service:
+    name: s6
+    enabled: true
+  notify:
+    - start s6
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

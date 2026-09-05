@@ -1,0 +1,41 @@
+---
+## Configure
+##
+
+- name: configure openntpd
+  become: true
+  ansible.builtin.template:
+    src: ntpd.conf.j2
+    dest: /etc/ntpd.conf
+    validate: "ntpd -n -f %s"
+  notify:
+    - restart openbsd ntpd
+
+- name: configure openntpd rc
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf.local
+    regexp: '^ntpd_flags='
+    line: "ntpd_flags={% if openntpd_force_sync %}-s{% endif %}"
+    state: present
+    create: true
+  notify:
+    - restart openbsd ntpd
+
+
+## Service
+##
+
+- name: enable openntpd service
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    state: started
+
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

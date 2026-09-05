@@ -1,0 +1,28 @@
+---
+- name: restart ntpd
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    state: restarted
+  register: restart_ntpd
+  changed_when: restart_ntpd is succeeded
+  failed_when: restart_ntpd is not succeeded
+
+- name: start ntpdate
+  become: true
+  ansible.builtin.service:
+    name: ntpdate
+    state: started
+  ignore_errors: true
+  register: start_ntpdate
+  changed_when: start_ntpdate is succeeded
+  failed_when: start_ntpdate is not succeeded
+
+- name: start ntpd
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    state: started
+  register: start_ntpd
+  changed_when: start_ntpd is succeeded
+  failed_when: start_ntpd is not succeeded

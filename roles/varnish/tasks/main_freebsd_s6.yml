@@ -1,0 +1,163 @@
+---
+## Install
+##
+
+- name: install varnish
+  become: true
+  community.general.pkgng:
+    name: varnish{{ varnish_version }}
+    state: latest
+
+- name: install varnish modules
+  become: true
+  community.general.pkgng:
+    name:
+      - varnish-ip2location
+      - varnish-ip2proxy
+      - varnish-libvmod-digest
+      - varnish-libvmod-dynamic
+      - varnish-libvmod-fileserver
+      - varnish-libvmod-geoip2
+      - varnish-libvmod-maxminddb
+      - varnish-libvmod-querystring
+      - varnish-libvmod-redis
+      - varnish-modules
+    state: latest
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  with_items:
+    - varnishd
+    - varnishncsa
+
+## User/groups
+##
+
+- name: add varnish group to www
+  become: true
+  ansible.builtin.user:
+    name: www
+    groups: varnish
+    append: true
+
+## Configure
+##
+
+- name: setup directories for varnish
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: varnish
+    mode: "0755"
+  with_items:
+    - "{{ varnish_prefix }}/config"
+    - "{{ varnish_prefix }}/data"
+
+- name: configure primary vcls
+  become: true
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ varnish_prefix }}/config/{{ item }}"
+    mode: "0644"
+  notify:
+    - restart varnishd
+  with_items:
+    - main.vcl
+    - default.vcl
+
+- name: configure label vcls
+  become: true
+  ansible.builtin.template:
+    src: "{{ item.template }}"
+    dest: "{{ varnish_prefix }}/config/label_{{ item.label }}.vcl"
+    mode: "0644"
+  with_items: "{{ varnish_labels }}"
+  notify:
+    - restart varnishd
+
+- name: configure boot
+  become: true
+  ansible.builtin.template:
+    src: boot.j2
+    dest: "{{ varnish_prefix }}/config/boot"
+    mode: "0644"
+  notify:
+    - restart varnishd
+
+## Supervise
+##
+
+- name: ensure varnishd service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/varnishd
+    - /var/service/varnishd/log
+
+- name: install varnishd service
+  become: true
+  ansible.builtin.template:
+    src: varnishd_run.j2
+    dest: /var/service/varnishd/run
+    mode: "0555"
+  notify:
+    - rescan varnishd s6
+    - restart varnishd
+
+- name: install varnishd s6 logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/varnishd/log/run
+    mode: "0555"
+    content: "{{ varnish_logger }}"
+  notify:
+    - rescan varnishd s6
+    - restart varnishd logger
+
+## Supervise Varnish NCSA
+##
+
+- name: ensure varnishncsa service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/varnishncsa
+    - /var/service/varnishncsa/log
+
+- name: install varnishncsa service
+  become: true
+  ansible.builtin.template:
+    src: varnishncsa_run.j2
+    dest: /var/service/varnishncsa/run
+    mode: "0555"
+  notify:
+    - rescan varnishd s6
+    - restart varnishncsa
+
+- name: install varnishncsa s6 logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/varnishncsa/log/run
+    mode: "0555"
+    content: "{{ varnish_ncsa_logger }}"
+  notify:
+    - rescan varnishd s6
+    - restart varnishncsa logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,47 @@
+---
+## Setup
+##
+
+- name: ensure pf kernel module
+  become: true
+  ansible.builtin.command: kldload pf
+  register: pf_loaded
+  changed_when: pf_loaded.rc == 0
+  failed_when: pf_loaded.rc > 1
+  when: pf_load
+
+- name: configure boot loader
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?pf_load="
+    line: "pf_load=YES"
+  when: pf_load
+
+## Configure
+##
+
+- name: configure pf
+  become: true
+  ansible.builtin.template:
+    src: pf_freebsd.conf.j2
+    dest: /etc/pf.conf
+    validate: "pfctl -n -f %s"
+    mode: 0600
+  notify:
+    - flush pf
+    - wait for pf flush
+
+- name: enable pf
+  become: true
+  ansible.builtin.service:
+    name: pf
+    enabled: true
+    state: started
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,12 @@
+---
+- name: rescan duplicity s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+
+- name: restart duplicity
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/duplicity
+
+- name: restart duplicity logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/duplicity/log

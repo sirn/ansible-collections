@@ -1,0 +1,78 @@
+---
+## Install
+##
+
+- name: install sanoid-syncoid support tools
+  become: true
+  community.general.pkgng:
+    name:
+      - pv
+      - liblz4
+    state: latest
+  notify:
+    - restart sanoid-syncoid
+
+## Configure
+##
+
+- name: ensure sanoid-syncoid directory
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - "{{ sanoid_syncoid_prefix }}"
+
+## SSH
+##
+
+- name: generate sanoid-syncoid ssh key
+  become: true
+  ansible.builtin.command: |
+    ssh-keygen -t {{ sanoid_syncoid_ssh_keytype }}
+      -f {{ sanoid_syncoid_ssh_keyfile }}
+      -C sanoid@{{ ansible_hostname }}
+      -N ""
+  args:
+    creates: "{{ sanoid_syncoid_ssh_keyfile }}"
+  when: sanoid_syncoid_ssh_keygen
+
+- name: ensure sanoid-syncoid key
+  become: true
+  ansible.builtin.file:
+    dest: "{{ sanoid_syncoid_ssh_keyfile }}"
+    mode: "0600"
+
+## Supervise
+##
+
+- name: ensure sanoid-syncoid service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /var/service/sanoid-syncoid
+    - /var/service/sanoid-syncoid/log
+
+- name: install sanoid-syncoid service
+  become: true
+  ansible.builtin.template:
+    src: syncoid.j2
+    dest: /var/service/sanoid-syncoid/run
+    mode: "0555"
+  notify:
+    - rescan sanoid s6
+    - restart sanoid-syncoid
+
+- name: install sanoid-syncoid logger service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/sanoid-syncoid/log/run
+    mode: "0555"
+    content: "{{ sanoid_syncoid_logger }}"
+  notify:
+    - rescan sanoid s6
+    - restart sanoid-syncoid logger

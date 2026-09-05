@@ -1,0 +1,21 @@
+---
+- name: rescan haproxy s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_haproxy_s6
+  changed_when: rescan_haproxy_s6 is succeeded
+  failed_when: rescan_haproxy_s6 is not succeeded
+
+- name: restart haproxy
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/haproxy
+  register: restart_haproxy
+  changed_when: restart_haproxy is succeeded
+  failed_when: restart_haproxy is not succeeded
+
+- name: restart haproxy logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/haproxy/log
+  register: restart_haproxy_logger
+  changed_when: restart_haproxy_logger is succeeded
+  failed_when: restart_haproxy_logger is not succeeded

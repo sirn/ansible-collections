@@ -1,0 +1,17 @@
+---
+- name: rescan openssh s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+
+- name: restart openssh
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/openssh
+
+- name: restart openssh logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/openssh/log
+
+- name: wait for openssh
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600

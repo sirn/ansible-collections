@@ -1,0 +1,84 @@
+---
+## Install
+##
+
+- name: install snooze
+  become: true
+  community.general.pkgng:
+    name: snooze
+    state: latest
+  notify:
+    - restart nginx-cloudflare
+
+## Setup
+##
+
+- name: ensure libexec directory
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/libexec
+    state: directory
+
+- name: install nginx-cloudflare
+  become: true
+  ansible.builtin.copy:
+    src: cloudflare.sh
+    dest: /usr/local/libexec/nginx-cloudflare
+    owner: nobody
+    group: wheel
+    mode: "0755"
+
+- name: setup initial nginx-cloudflare configuration
+  become: true
+  ansible.builtin.shell: |
+    /usr/local/libexec/nginx-cloudflare /usr/local/etc/nginx/cloudflare.conf
+    chown www:www /usr/local/etc/nginx/cloudflare.conf
+  args:
+    creates: /usr/local/etc/nginx/cloudflare.conf
+
+## Supervise
+##
+
+- name: ensure nginx-cloudflare service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: 0755
+  with_items:
+    - /var/service/nginx-cloudflare
+    - /var/service/nginx-cloudflare/log
+
+- name: install nginx-cloudflare service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/nginx-cloudflare/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      snooze -d/7 -v -t /usr/local/etc/nginx/cloudflare.conf
+
+      if {
+        s6-setuidgid www
+        /usr/local/libexec/nginx-cloudflare /usr/local/etc/nginx/cloudflare.conf
+      }
+
+      foreground {
+        s6-svc -t /var/service/nginx
+      }
+
+      touch /usr/local/etc/nginx/cloudflare.conf
+  notify:
+    - rescan nginx s6
+    - restart nginx-cloudflare
+
+- name: install nginx-cloudflare log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/nginx-cloudflare/log/run
+    mode: "0555"
+    content: "{{ nginx_cloudflare_logger }}"
+  notify:
+    - rescan nginx s6
+    - restart nginx-cloudflare logger

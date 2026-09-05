@@ -1,0 +1,189 @@
+---
+## Install
+##
+
+- name: install duplicity
+  become: true
+  community.general.pkgng:
+    name:
+      - duplicity
+      - gnupg
+      - rsync
+      - snooze
+    state: latest
+  notify:
+    - restart duplicity
+
+## Setup user
+##
+
+- name: create duplicity group
+  become: true
+  ansible.builtin.group:
+    name: duplicity
+    gid: 910
+    state: present
+
+- name: create duplicity user
+  become: true
+  ansible.builtin.user:
+    name: duplicity
+    uid: 910
+    state: present
+    home: "{{ duplicity_dir }}"
+    shell: /bin/sh
+    groups:
+      - duplicity
+      - www
+    create_home: false
+
+- name: ensure duplicity directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: duplicity
+    group: duplicity
+    mode: 0700
+  with_items:
+    - "{{ duplicity_dir }}"
+    - "{{ duplicity_datadir }}"
+    - "{{ duplicity_ssh_dir }}"
+
+## SSH key
+##
+
+- name: generate ssh key
+  become: true
+  become_user: duplicity
+  ansible.builtin.command: |
+    ssh-keygen -t {{ duplicity_ssh_keytype }}
+      -f {{ duplicity_ssh_keyfile }}
+      -C duplicity@{{ ansible_hostname }}
+      -N ""
+  args:
+    creates: "{{ duplicity_ssh_keyfile }}"
+  when: duplicity_ssh_keygen
+
+## GPG key
+##
+
+- name: generate gpg key
+  become: true
+  become_user: duplicity
+  ansible.builtin.shell: |
+    if test -n "$(gpg2 --with-colons --status-fd 1 --list-secret-keys)"; then
+      exit 0
+    fi
+    (
+      printf "%%no-protection\\n"
+      printf "Key-Type: RSA\\n"
+      printf "Key-Length: 4096\\n"
+      printf "Key-Usage: sign\\n"
+      printf "Subkey-Type: RSA\\n"
+      printf "Subkey-Length: 4096\\n"
+      printf "Subkey-Usage: encrypt\\n"
+      printf "Name-Real: Duplicity\\n"
+      printf "Name-Comment: {{ ansible_fqdn }}\\n"
+      printf "Name-Email: duplicity@{{ ansible_fqdn }}\\n"
+      printf "Expire-Date: 0\\n"
+      printf "%%commit\\n"
+    ) > {{ duplicity_dir }}/gpg_tmp
+    gpg2 --batch --generate-key {{ duplicity_dir }}/gpg_tmp
+    rm {{ duplicity_dir }}/gpg_tmp
+    exit 255
+  register: gpg_generate
+  changed_when: gpg_generate.rc == 255
+  failed_when: gpg_generate.rc > 0 and gpg_generate.rc < 255
+
+- name: import recipient gpg key
+  become: true
+  become_user: duplicity
+  ansible.builtin.shell: |
+    if gpg2 --with-colons --status-fd 1 --list-keys {{ item.id }}; then
+      exit 0
+    fi
+    {% if "url" in item and item.url %}
+    curl -sSL {{ item.url }} | gpg2 --import
+    {% else %}
+    gpg2 --recv-keys {{ item.id[-16:] }}
+    {% endif %}
+    exit 255
+  register: gpg_import
+  changed_when: gpg_import.rc == 255
+  failed_when: gpg_import.rc > 0 and gpg_import.rc < 255
+  with_items: "{{ duplicity_gpg_recipients }}"
+
+- name: update recipient gpg trust
+  become: true
+  become_user: duplicity
+  ansible.builtin.shell: |
+    if gpg2 --export-ownertrust |grep -q {{ item.id }}:; then
+      exit 0
+    fi
+    echo "{{ item.id }}:6:" | gpg2 --import-ownertrust
+    exit 255
+  register: gpg_trust
+  changed_when: gpg_trust.rc == 255
+  failed_when: gpg_trust.rc > 0 and gpg_trust.rc < 255
+  with_items: "{{ duplicity_gpg_recipients }}"
+
+- name: retrieve gpg key
+  become: true
+  become_user: duplicity
+  ansible.builtin.shell: |
+    gpg2 --with-colons --list-secret-keys |
+    awk '/^sec:/ { split($0, s, ":"); print s[5] }'
+  register: gpg_key_retrieve
+  changed_when: false
+
+## Setup wrapper script
+##
+
+- name: install duplicity wrapper script
+  become: true
+  ansible.builtin.template:
+    src: wrapper.sh.j2
+    dest: "{{ duplicity_dir }}/wrapper.sh"
+    owner: duplicity
+    group: duplicity
+    mode: "0700"
+
+## Supervise
+##
+
+- name: ensure duplicity service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+  with_items:
+    - /var/service/duplicity
+    - /var/service/duplicity/log
+
+- name: install duplicity service
+  become: true
+  ansible.builtin.template:
+    src: duplicity.j2
+    dest: /var/service/duplicity/run
+    mode: 0555
+  notify:
+    - rescan duplicity s6
+    - restart duplicity
+
+- name: install duplicity log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/duplicity/log/run
+    mode: "0555"
+    content: "{{ duplicity_logger }}"
+  notify:
+    - rescan duplicity s6
+    - restart duplicity logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

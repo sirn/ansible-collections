@@ -1,0 +1,53 @@
+---
+postgresql_addresses:
+  - "*"
+
+postgresql_dir: /var/db/postgres
+
+postgresql_databases:
+  - user: "{{ ansible_user }}"
+    password: "passw0rd"
+    databases:
+      - "{{ ansible_user }}"
+
+postgresql_group: postgres
+
+postgresql_group_create: false
+
+postgresql_group_extra_users: []
+
+postgresql_hba:
+  - { type: host, database: all, user: all, address: 0.0.0.0/0, method: md5 }
+
+postgresql_hba_trust_local: false
+
+postgresql_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/postgresql/
+
+postgresql_max_connections: 256
+
+postgresql_port: 5432
+
+postgresql_python_version: "3.9"
+
+postgresql_shared_buffers: 512MB
+
+postgresql_tls: false
+
+postgresql_tls_cert_file:
+
+postgresql_tls_key_file:
+
+postgresql_user: postgres
+
+postgresql_user_create: false
+
+postgresql_unix_socket_directories:
+  - /var/run/postgresql
+
+postgresql_version: 10
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

@@ -1,0 +1,21 @@
+---
+- name: rescan mysqld s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_mysqld_s6
+  changed_when: rescan_mysqld_s6 is succeeded
+  failed_when: rescan_mysqld_s6 is not succeeded
+
+- name: restart mysqld
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mysqld
+  register: restart_mysqld
+  changed_when: restart_mysqld is succeeded
+  failed_when: restart_mysqld is not succeeded
+
+- name: restart mysqld logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mysqld/log
+  register: restart_mysqld_logger
+  changed_when: restart_mysqld_logger is succeeded
+  failed_when: restart_mysqld_logger is not succeeded

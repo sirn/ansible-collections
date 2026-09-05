@@ -1,0 +1,8 @@
+---
+hardening_ssh_port: 22
+
+hardening_ssh_allow_tcp_forwarding: false
+
+hardening_disable_ht: false
+
+hardening_ssh_match_user: {}

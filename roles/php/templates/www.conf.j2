@@ -1,0 +1,19 @@
+[www]
+user = www
+group = www
+listen = {{php_fpm_address}}
+listen.backlog = -1
+listen.owner = www
+listen.group = www
+listen.mode = 0600
+
+pm = {{php_fpm_pm}}
+pm.max_children = {{php_fpm_max_children}}
+pm.start_servers = {{php_fpm_start_servers}}
+pm.min_spare_servers = {{php_fpm_min_spare_servers}}
+pm.max_spare_servers = {{php_fpm_max_spare_servers}}
+pm.max_requests = {{php_fpm_max_requests}}
+{% if php_fpm_config %}
+
+{{php_fpm_config}}
+{% endif %}

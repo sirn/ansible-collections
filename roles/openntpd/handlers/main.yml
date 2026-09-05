@@ -1,0 +1,18 @@
+---
+- name: rescan openntpd s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+
+- name: restart openntpd
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/openntpd
+
+- name: restart openntpd logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/openntpd/log
+
+- name: restart openbsd ntpd
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    state: restarted

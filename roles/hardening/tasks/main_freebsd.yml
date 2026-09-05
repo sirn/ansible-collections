@@ -1,0 +1,269 @@
+---
+## Auditing tools
+##
+
+- name: install auditing tools
+  become: true
+  community.general.pkgng:
+    name: lynis
+    state: present
+
+## SSH
+##
+
+- name: configure ssh
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "{{ item.key }} {{ item.value }}"
+    regexp: "^#?( +)?{{ item.key }} .*$"
+    validate: "sshd -tf %s"
+    mode: "0644"
+    create: true
+  with_items:
+    - key: "AllowAgentForwarding"
+      value: "no"
+    - key: "AllowTcpForwarding"
+      value: "{{ 'yes' if hardening_ssh_allow_tcp_forwarding else 'no' }}"
+    - key: "ClientAliveCountMax"
+      value: "2"
+    - key: "Compression"
+      value: "no"
+    - key: "LogLevel"
+      value: "VERBOSE"
+    - key: "MaxAuthTries"
+      value: "2"
+    - key: "MaxSessions"
+      value: "2"
+    - key: "PermitRootLogin"
+      value: "no"
+    - key: "Port"
+      value: "{{ hardening_ssh_port }}"
+    - key: "TCPKeepAlive"
+      value: "no"
+    - key: "UseDNS"
+      value: "no"
+    - key: "X11Forwarding"
+      value: "no"
+  notify:
+    - reload sshd
+
+- name: configure ssh match user
+  become: true
+  ansible.builtin.blockinfile:
+    path: /etc/ssh/sshd_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Match User {{ item.key }}"
+    block: |
+      Match User {{ item.key }}
+      {% for opt_key, opt_value in item.value.items() %}
+          {{ opt_key }} {{ opt_value }}
+      {% endfor %}
+    validate: "sshd -tf %s"
+  loop: "{{ hardening_ssh_match_user | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: hardening_ssh_match_user | length > 0
+  notify:
+    - reload sshd
+
+## Sudo
+##
+
+- name: check if sudoers exists
+  become: true
+  ansible.builtin.stat:
+    path: /usr/local/etc/sudoers
+  register: stat_sudoers
+
+- name: ensure sudoers permission
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/etc/sudoers
+    owner: root
+    group: wheel
+    mode: "0600"
+  when: stat_sudoers.stat.exists
+
+- name: ensure sudoers.d permission
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    find /usr/local/etc/sudoers.d \
+        -type d \
+        -not -perm 0750 \
+        -print0 | xargs -0 chmod -v 0750
+
+    find /usr/local/etc/sudoers.d \
+        -type f \
+        -not -perm 0600 \
+        -print0 | xargs -0 chmod -v 0600
+  register: chmod_sudoers
+  changed_when: chmod_sudoers.stdout | length > 0
+  when: stat_sudoers.stat.exists
+
+## TTY
+##
+
+- name: configure ttys
+  become: true
+  ansible.builtin.replace:
+    path: /etc/ttys
+    regexp: "^console(.*) secure$"
+    replace: 'console\1 insecure'
+    backup: true
+
+## Sysctl
+##
+
+- name: configure boot loader
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    line: "{{ item.key }}={{ item.value }}"
+    regexp: "^#?( +)?{{ item.key }}="
+  with_items:
+    - { key: "machdep.hyperthreading_allowed", value: "0" }
+  when: hardening_disable_ht
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: configure sysctl
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    line: "{{ item.key }}={{ item.value }}"
+    regexp: "^#?( +)?{{ item.key }}="
+  with_items:
+    - key: "hw.kbd.keymap_restrict_change"
+      value: "4"
+    - key: "kern.ipc.shm_use_phys"
+      value: "1"
+    - key: "kern.msgbuf_show_timestamp"
+      value: "1"
+    - key: "kern.random.fortuna.minpoolsize"
+      value: "128"
+    - key: "kern.randompid"
+      value: "1"
+    - key: "kern.sugid_coredump"
+      value: "0"
+    - key: "net.bpf.optimize_writers"
+      value: "1"
+    - key: "net.inet.icmp.bmcastecho"
+      value: "0"
+    - key: "net.inet.icmp.drop_redirect"
+      value: "1"
+    - key: "net.inet.ip.accept_sourceroute"
+      value: "0"
+    - key: "net.inet.ip.portrange.first"
+      value: "32768"
+    - key: "net.inet.ip.process_options"
+      value: "0"
+    - key: "net.inet.ip.random_id"
+      value: "1"
+    - key: "net.inet.ip.redirect"
+      value: "0"
+    - key: "net.inet.ip.sourceroute"
+      value: "0"
+    - key: "net.inet.tcp.always_keepalive"
+      value: "0"
+    - key: "net.inet.tcp.blackhole"
+      value: "2"
+    - key: "net.inet.tcp.drop_synfin"
+      value: "1"
+    - key: "net.inet.tcp.ecn.enable"
+      value: "1"
+    - key: "net.inet.tcp.fast_finwait2_recycle"
+      value: "1"
+    - key: "net.inet.tcp.fastopen.client_enable"
+      value: "0"
+    - key: "net.inet.tcp.fastopen.server_enable"
+      value: "0"
+    - key: "net.inet.tcp.finwait2_timeout"
+      value: "1000"
+    - key: "net.inet.tcp.icmp_may_rst"
+      value: "0"
+    - key: "net.inet.tcp.keepcnt"
+      value: "2"
+    - key: "net.inet.tcp.keepidle"
+      value: "62000"
+    - key: "net.inet.tcp.keepinit"
+      value: "5000"
+    - key: "net.inet.tcp.log_in_vain"
+      value: "1"
+    - key: "net.inet.tcp.msl"
+      value: "2500"
+    - key: "net.inet.tcp.nolocaltimewait"
+      value: "1"
+    - key: "net.inet.tcp.path_mtu_discovery"
+      value: "0"
+    - key: "net.inet.udp.blackhole"
+      value: "1"
+    - key: "net.inet.udp.log_in_vain"
+      value: "1"
+    - key: "net.inet6.icmp6.rediraccept"
+      value: "0"
+    - key: "net.inet6.ip6.redirect"
+      value: "0"
+    - key: "security.bsd.conservative_signals"
+      value: "1"
+    - key: "security.bsd.hardlink_check_gid"
+      value: "1"
+    - key: "security.bsd.hardlink_check_uid"
+      value: "1"
+    - key: "security.bsd.see_other_gids"
+      value: "0"
+    - key: "security.bsd.see_other_uids"
+      value: "0"
+    - key: "security.bsd.stack_guard_page"
+      value: "1"
+    - key: "security.bsd.unprivileged_proc_debug"
+      value: "0"
+    - key: "security.bsd.unprivileged_read_msgbuf"
+      value: "0"
+  notify:
+    - restart sysctl
+
+- name: remove deprecated sysctl entries
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: "^#?( +)?{{ item }}="
+    state: absent
+  with_items:
+    - "net.inet.ip.check_interface"
+    - "net.inet.ip.portrange.randomcps"
+    - "net.inet.ip.portrange.randomtime"
+    - "net.inet.sctp.blackhole"
+  notify:
+    - restart sysctl
+
+## Accounting
+##
+
+- name: enable process accounting
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf
+    line: 'accounting_enable="YES"'
+    regexp: "^#?( +)?accounting_enable="
+  notify:
+    - enable accounting
+
+- name: ensure accounting file
+  become: true
+  ansible.builtin.file:
+    path: /var/account/acct
+    state: touch
+    owner: root
+    group: wheel
+    mode: "0640"
+    access_time: preserve
+    modification_time: preserve
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

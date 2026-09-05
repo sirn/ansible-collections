@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+*.retry
+collections/
+ansible_collections/
+__pycache__/
+.ansible/

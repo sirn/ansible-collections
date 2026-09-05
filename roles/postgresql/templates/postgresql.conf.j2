@@ -1,0 +1,58 @@
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+
+# - Connection Settings -
+listen_addresses = '{{ postgresql_addresses|join(", ") }}'
+port = {{ postgresql_port }}
+max_connections = {{ postgresql_max_connections }}
+unix_socket_directories = '{{ postgresql_unix_socket_directories|join(", ") }}'
+{% if postgresql_tls %}
+
+# - TLS Settings -
+ssl = on
+ssl_cert_file = '{{ postgresql_tls_cert_file }}'
+ssl_key_file = '{{ postgresql_tls_key_file }}'
+{% endif %}
+
+
+#------------------------------------------------------------------------------
+# RESOURCE USAGE (except WAL)
+#------------------------------------------------------------------------------
+
+# - Memory -
+shared_buffers = {{ postgresql_shared_buffers }}
+
+
+#------------------------------------------------------------------------------
+# EROR REPORTING AND LOGGING
+#------------------------------------------------------------------------------
+
+# - Where to Log -
+log_destination = 'stderr'
+
+# - What to Log -
+log_line_prefix = ''
+log_timezone = 'UTC'
+
+
+#------------------------------------------------------------------------------
+# RUNTIME STATISTICS
+#------------------------------------------------------------------------------
+
+# - Query/Index Statistics Collector -
+update_process_title = off
+
+
+#------------------------------------------------------------------------------
+# CLIENT CONNECTION DEFAULTS
+#------------------------------------------------------------------------------
+
+# - Locale and Formatting -
+datestyle = 'iso, mdy'
+timezone = 'UTC'
+lc_messages = 'C'
+lc_monetary = 'C'
+lc_numeric = 'C'
+lc_time = 'C'
+default_text_search_config = 'pg_catalog.english'

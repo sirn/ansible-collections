@@ -1,0 +1,27 @@
+---
+- name: reboot system
+  become: true
+  ansible.builtin.shell: sleep 2 && shutdown -r now "Maintenance reboot"
+  async: 0
+  poll: 0
+  register: reboot_system
+  ignore_errors: true
+  changed_when: reboot_system is succeeded
+  failed_when: reboot_system is not succeeded
+
+- name: wait for system reboot
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600
+  register: wait_for_system_reboot
+  changed_when: wait_for_system_reboot is succeeded
+  failed_when: wait_for_system_reboot is not succeeded
+
+- name: start s6
+  become: true
+  ansible.builtin.service:
+    name: s6
+    state: started
+  register: start_s6
+  changed_when: start_s6 is succeeded
+  failed_when: start_s6 is not succeeded

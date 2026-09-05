@@ -1,0 +1,12 @@
+---
+- name: rescan hitch s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+
+- name: restart hitch
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/hitch
+
+- name: restart hitch logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/hitch/log

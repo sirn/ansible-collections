@@ -1,0 +1,126 @@
+---
+## Install
+##
+
+- name: install openssh-portable
+  become: true
+  community.general.pkgng:
+    name: openssh-portable
+    state: latest
+  notify:
+    - restart openssh
+    - wait for openssh
+
+- name: ensure openssh configuration directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/etc/ssh
+    state: directory
+
+## Configure
+##
+
+- name: copy openssh host keys
+  become: true
+  ansible.builtin.copy:
+    src: "/etc/ssh/{{ item }}"
+    dest: "/usr/local/etc/ssh/{{ item }}"
+    mode: "0600"
+    remote_src: true
+  with_items:
+    - ssh_host_ecdsa_key
+    - ssh_host_ecdsa_key.pub
+    - ssh_host_ed25519_key
+    - ssh_host_ed25519_key.pub
+    - ssh_host_rsa_key
+    - ssh_host_rsa_key.pub
+  when: openssh_copy_host_keys
+
+- name: generate openssh host keys
+  become: true
+  ansible.builtin.shell: /usr/local/bin/ssh-keygen -A
+  args:
+    creates: /usr/local/etc/ssh/ssh_host_ecdsa_key
+
+- name: configure openssh
+  become: true
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /usr/local/etc/sshd_config
+    validate: /usr/local/sbin/sshd -f %s -t
+  notify:
+    - restart openssh
+    - wait for openssh
+
+## Supervise
+##
+
+- name: ensure openssh service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+  with_items:
+    - /var/service/openssh
+    - /var/service/openssh/log
+
+- name: install openssh service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/openssh/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      /usr/local/sbin/sshd -D -e -f /usr/local/etc/sshd_config
+  register: openssh_s6_install
+
+- name: install openssh log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/openssh/log/run
+    mode: "0555"
+    content: "{{ openssh_logger }}"
+  notify:
+    - rescan openssh s6
+    - restart openssh logger
+
+## First run
+## We need to make sure to swap sshd from base with openssh-portable
+## in one go. There is no easy way to do this with notify.
+##
+
+- name: enable openssh
+  become: true
+  ansible.builtin.shell: |
+    sleep 2 &&
+    service sshd stop &&
+    s6-svscanctl -an /var/service &&
+    s6-svc -t /var/service/openssh
+  async: 0
+  poll: 0
+  ignore_errors: true
+  when: openssh_s6_install.changed
+
+- name: wait for openssh
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600
+  when: openssh_s6_install.changed
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  with_items:
+    - sshd
+    - openssh
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

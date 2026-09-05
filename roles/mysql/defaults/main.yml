@@ -1,0 +1,45 @@
+---
+mysql_address: "0.0.0.0"
+
+mysql_databases: []
+# - user: "{{ ansible_user }}"
+#   host: "localhost"
+#   password: "passw0rd"
+#   grants:
+#     - "{{ ansible_user }}_%.*:ALL"
+
+mysql_dir: /var/db/mysql
+
+mysql_dir_innodb: "{{ mysql_dir }}/innodb"
+
+mysql_dir_log: "{{ mysql_dir }}/log"
+
+mysql_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/mysqld/
+
+mysql_innodb_checksum_algorithm: "crc32"
+
+mysql_innodb_doublewrite: "0"
+
+mysql_innodb_flush_neighbors: "0"
+
+mysql_innodb_log_write_ahead_size: "16384"
+
+mysql_innodb_use_atomic_writes: "0"
+
+mysql_innodb_use_native_aio: "0"
+
+mysql_package: "mariadb1011"
+
+mysql_password: "passw0rd"
+
+mysql_python_version: "3.9"
+
+mysql_skip_networking: false
+
+mysql_socket: /var/run/mysql/mysql.sock
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

@@ -1,0 +1,21 @@
+---
+- name: rescan redis s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_redis_s6
+  changed_when: rescan_redis_s6 is succeeded
+  failed_when: rescan_redis_s6 is not succeeded
+
+- name: restart redis
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/redis
+  register: restart_redis
+  changed_when: restart_redis is succeeded
+  failed_when: restart_redis is not succeeded
+
+- name: restart redis logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/redis/log
+  register: restart_redis_logger
+  changed_when: restart_redis_logger is succeeded
+  failed_when: restart_redis_logger is not succeeded

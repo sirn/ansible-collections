@@ -1,0 +1,21 @@
+---
+## Configure
+##
+
+- name: configure pf
+  become: true
+  ansible.builtin.template:
+    src: pf_openbsd.conf.j2
+    dest: /etc/pf.conf
+    validate: "pfctl -n -f %s"
+  notify:
+    - flush pf
+    - wait for pf flush
+
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

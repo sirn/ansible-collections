@@ -1,0 +1,130 @@
+---
+## Install
+##
+
+- name: install mrtg
+  become: true
+  community.general.pkgng:
+    name: mrtg
+    state: latest
+  notify:
+    - restart mrtg
+
+- name: disable mrtg service
+  become: true
+  ansible.builtin.service:
+    name: mrtg_daemon
+    enabled: false
+  notify:
+    - stop mrtg
+
+- name: ensure mrtg directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ mrtg_user }}"
+    group: "{{ mrtg_group }}"
+    mode: "0755"
+  with_items:
+    - "{{ mrtg_workdir }}"
+    - /var/run/mrtg
+    - /usr/local/etc/mrtg
+
+## Install MRTG helpers
+##
+
+- name: create mrtg group
+  become: true
+  ansible.builtin.group:
+    name: "{{ mrtg_group }}"
+    system: true
+    state: present
+  when: mrtg_group_create
+
+- name: create mrtg user
+  become: true
+  ansible.builtin.user:
+    name: "{{ mrtg_user }}"
+    home: /nonexistent
+    state: present
+    shell: /usr/sbin/nologin
+    system: true
+    createhome: false
+    groups:
+      - "{{ mrtg_group }}"
+  when: mrtg_user_create
+
+- name: install mrtg helpers dependencies
+  become: true
+  community.general.pkgng:
+    name: jq
+    state: latest
+
+- name: copy mrtg helpers
+  become: true
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/etc/mrtg/{{ item }}"
+    owner: "{{ mrtg_user }}"
+    group: "{{ mrtg_group }}"
+    mode: "0755"
+  with_items:
+    - mrtg_net.sh
+  notify:
+    - regenerate mrtg index
+
+## Configure MRTG
+##
+
+- name: configure mrtg
+  become: true
+  ansible.builtin.template:
+    src: mrtg.cfg
+    dest: /usr/local/etc/mrtg/mrtg.cfg
+    owner: "{{ mrtg_user }}"
+    group: "{{ mrtg_group }}"
+    mode: "0644"
+  notify:
+    - regenerate mrtg index
+    - restart mrtg
+
+## Supervise
+##
+
+- name: ensure mrtg service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/mrtg
+    - /var/service/mrtg/log
+
+- name: install mrtg service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/mrtg/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      s6-setuidgid mrtg
+      /usr/local/bin/mrtg
+        --lock-file /var/run/mrtg/lockfile
+        --confcache-file /var/run/mrtg/confcache
+        /usr/local/etc/mrtg/mrtg.cfg
+  notify:
+    - rescan mrtg s6
+    - restart mrtg
+
+- name: install mrtg logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/mrtg/log/run
+    mode: "0555"
+    content: "{{ mrtg_logger }}"
+  notify:
+    - rescan mrtg s6
+    - restart mrtg logger

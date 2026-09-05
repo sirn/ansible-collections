@@ -1,0 +1,71 @@
+---
+nginx_access_log: /dev/stderr
+
+nginx_accf_http: true
+
+nginx_accf_http_load: true
+
+nginx_accf_data: true
+
+nginx_accf_data_load: true
+
+nginx_client_body_buffer_size: 32k
+
+nginx_client_max_body_size: 128m
+
+nginx_config: ""
+
+nginx_cloudflare: false
+
+nginx_cloudflare_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/nginx-cloudflare/
+
+nginx_drop_privileges_early: false
+
+nginx_error_log: /dev/stderr
+
+nginx_error_log_level: info
+
+nginx_gzip: true
+
+nginx_gzip_types:
+  - application/json
+  - text/css
+  - text/javascript
+
+nginx_keepalive_timeout: 120
+
+nginx_http: true
+
+nginx_http_port: 80
+
+nginx_https_port: 443
+
+nginx_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/nginx/
+
+nginx_ipv4: true
+
+nginx_ipv6: false
+
+nginx_server_names_hash_bucket_size: 64
+
+nginx_sites: []
+
+nginx_stream: false
+
+nginx_stream_config: ""
+
+nginx_streams: []
+
+nginx_types_hash_max_size: 2048
+
+nginx_worker_connections: 256
+
+nginx_worker_processes: 2
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

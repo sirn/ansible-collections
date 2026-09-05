@@ -1,0 +1,38 @@
+# Daemonizing
+daemon = off
+{% if not hitch_drop_privileges_early %}
+user = www
+group = www
+{% endif %}
+
+# Listening
+{% for frontend in hitch_frontends %}
+frontend = {
+  host = "{{frontend.address}}"
+  port = "{{frontend.port}}"
+{% if "dehydrated_certs" in frontend and frontend.dehydrated_certs %}
+{% for cert in frontend.dehydrated_certs %}
+  pem-file = "/usr/local/etc/dehydrated/certs/{{cert}}/fullbundle.pem"
+{% endfor %}
+{% endif %}
+{% if "certs" in frontend and frontend.certs %}
+{% for cert in frontend.certs %}
+  pem-file = "{{cert}}"
+{% endfor %}
+{% endif %}
+}
+{% endfor %}
+{% if hitch_enable_proxy_v2 %}
+alpn-protos = "h2,http/1.1"
+{% endif %}
+tls = on
+
+# Backend
+backend = "{{hitch_backend_address}}"
+{% if hitch_enable_proxy_v2 %}
+write-proxy-v2 = on
+{% endif %}
+
+# Ciphers
+ciphers = "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
+prefer-server-ciphers = on

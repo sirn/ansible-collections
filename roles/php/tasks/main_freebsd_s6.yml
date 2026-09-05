@@ -1,0 +1,134 @@
+---
+## Installation
+##
+
+- name: install php
+  become: true
+  community.general.pkgng:
+    name:
+      - "{{ php_fpm_version }}"
+      - "{{ php_fpm_version }}-composer"
+      - "{{ php_fpm_version }}-ctype"
+      - "{{ php_fpm_version }}-curl"
+      - "{{ php_fpm_version }}-dom"
+      - "{{ php_fpm_version }}-exif"
+      - "{{ php_fpm_version }}-fileinfo"
+      - "{{ php_fpm_version }}-filter"
+      - "{{ php_fpm_version }}-gd"
+      - "{{ php_fpm_version }}-iconv"
+      - "{{ php_fpm_version }}-intl"
+      - "{{ php_fpm_version }}-mbstring"
+      - "{{ php_fpm_version }}-mysqli"
+      - "{{ php_fpm_version }}-opcache"
+      - "{{ php_fpm_version }}-pdo"
+      - "{{ php_fpm_version }}-pdo_mysql"
+      - "{{ php_fpm_version }}-pecl-memcache"
+      - "{{ php_fpm_version }}-pecl-redis"
+      - "{{ php_fpm_version }}-session"
+      - "{{ php_fpm_version }}-simplexml"
+      - "{{ php_fpm_version }}-sockets"
+      - "{{ php_fpm_version }}-sodium"
+      - "{{ php_fpm_version }}-tokenizer"
+      - "{{ php_fpm_version }}-xml"
+      - "{{ php_fpm_version }}-xmlreader"
+      - "{{ php_fpm_version }}-xmlwriter"
+    state: present
+  notify:
+    - restart php-fpm
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: php_fpm
+    state: stopped
+    enabled: false
+
+## Configure
+##
+
+- name: configure php.ini
+  become: true
+  ansible.builtin.template:
+    src: php.ini.j2
+    dest: /usr/local/etc/php.ini
+    mode: "0644"
+  notify:
+    - restart php-fpm
+
+- name: ensure php-fpm configuration directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/etc/php-fpm.d
+    state: directory
+    mode: "0755"
+
+- name: ensure php-fpm run directory
+  become: true
+  ansible.builtin.file:
+    path: /var/run/php-fpm
+    owner: www
+    group: www
+    state: directory
+    mode: "0755"
+
+- name: configure php-fpm.conf
+  become: true
+  ansible.builtin.copy:
+    src: php-fpm.conf
+    dest: /usr/local/etc/php-fpm.conf
+    mode: "0644"
+  notify:
+    - restart php-fpm
+
+- name: configure www.conf
+  become: true
+  ansible.builtin.template:
+    src: www.conf.j2
+    dest: /usr/local/etc/php-fpm.d/www.conf
+    mode: "0644"
+  notify:
+    - restart php-fpm
+
+## Supervise
+##
+
+- name: ensure php-fpm service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/php-fpm
+    - /var/service/php-fpm/log
+
+- name: install php-fpm service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/php-fpm/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      s6-setuidgid www
+      fdmove -c 2 1
+      /usr/local/sbin/php-fpm -F
+  notify:
+    - rescan php-fpm s6
+    - restart php-fpm
+
+- name: install php-fpm log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/php-fpm/log/run
+    mode: "0555"
+    content: "{{ php_fpm_logger }}"
+  notify:
+    - rescan php-fpm s6
+    - restart php-fpm logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,32 @@
+#jinja2: trim_blocks:False
+#!/usr/local/bin/execlineb -P
+fdmove -c 2 1
+redirfd -r 0 /dev/null
+
+define datadir {{ sanoid_syncoid_prefix }}
+define timefile ${datadir}/timefile
+
+snooze {{ sanoid_syncoid_snooze_args }} -t ${timefile}
+{%- for target in sanoid_syncoid_targets %}
+
+if {
+  syncoid
+    --no-sync-snap
+    --compress={{ sanoid_syncoid_compress }}
+    --no-privilege-elevation
+    {%- if "delete_target_snapshots" in target and target.delete_target_snapshots %}
+    --delete-target-snapshots
+    {%- endif %}
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile={{ sanoid_syncoid_prefix }}/known_hosts
+    -o IdentityFile={{ sanoid_syncoid_ssh_keyfile }}
+    {{ target.source }}
+    {%- if "remote" in target and target.remote %}
+    {{ target.remote }}:{{ target.dest -}}
+    {%- else %}
+    {{ sanoid_syncoid_remote }}:{{ target.dest }}
+    {%- endif %}
+}
+{%- endfor %}
+
+touch ${timefile}

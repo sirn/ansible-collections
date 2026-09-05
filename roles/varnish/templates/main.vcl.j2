@@ -1,0 +1,82 @@
+vcl 4.1;
+
+import std;
+
+backend default {
+    .host = "127.0.0.1";
+    .port = "8090";
+}
+
+{% if varnish_builtin_vcl and varnish_cloudflare %}
+acl official_cloudflare {
+    # https://www.cloudflare.com/ips-v4
+    {% for ip in lookup("ansible.builtin.url", "https://www.cloudflare.com/ips-v4", wantlist=True) %}
+    "{{ ip | split("/") | first }}"/{{ ip | split("/") | last }};
+    {% endfor %}
+    # https://www.cloudflare.com/ips-v6
+    {% for ip in lookup("ansible.builtin.url", "https://www.cloudflare.com/ips-v6", wantlist=True) %}
+    "{{ ip | split("/") | first }}"/{{ ip | split("/") | last }};
+    {% endfor %}
+}
+
+{% endif %}
+sub vcl_recv {
+    set req.http.host = std.tolower(req.http.host);
+{% if varnish_builtin_vcl %}
+
+    # Varnish is public-facing, always override X-Forwarded-For.
+    set req.http.x-forwarded-for = client.ip;
+    set req.http.x-forwarded-proto = "http";
+
+{% if varnish_cloudflare %}
+    # Trust if coming from Cloudflare.
+    if (req.http.cf-connecting-ip) {
+        if (client.ip ~ official_cloudflare) {
+            set req.http.x-forwarded-for = req.http.cf-connecting-ip;
+        }
+    }
+    # Always set CF-Connecting-IP for backend (nginx real_ip module uses this)
+    # For Cloudflare: use the header they sent (real client IP)
+    # For direct traffic: use client.ip (actual connecting IP from PROXY protocol)
+    if (!req.http.cf-connecting-ip) {
+        set req.http.cf-connecting-ip = client.ip;
+    }
+
+{% endif %}
+    # Treat all requests from a port named HTTPS as https request.
+    if (local.socket ~ "^https") {
+        set req.http.x-forwarded-proto = "https";
+    }
+
+    # Always redirect HTTP to HTTPS.
+    if (local.socket ~ "^http" && local.socket !~ "^https") {
+        set req.http.x-redir = "https://" + req.http.host + req.url;
+        return (synth(850, "Moved permanently"));
+    }
+{% endif %}
+{% for label in varnish_labels %}
+{% if loop.first %}
+
+    if (req.http.host ~ "{{ label.match }}") {
+{% else %}
+    } elsif (req.http.host ~ "{{ label.match }}") {
+{% endif %}
+        return (vcl(label_{{ label.label }}));
+{% if loop.last %}
+    }
+{% endif %}
+{% endfor %}
+
+    return (synth(404, "Not Found"));
+}
+{% if varnish_builtin_vcl %}
+
+sub vcl_synth {
+    # Actually redirecting non-HTTPS to HTTPS (see vcl_recv).
+    if (resp.status == 850) {
+        set resp.http.location = req.http.x-redir;
+        set resp.status = 301;
+        return (deliver);
+    }
+}
+{% endif %}

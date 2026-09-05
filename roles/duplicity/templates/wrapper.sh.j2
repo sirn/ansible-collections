@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+w_duplicity() {
+  nice -n 20 \
+    env PASSPHRASE="" \
+    duplicity \
+      --allow-source-mismatch \
+      --gpg-binary=/usr/local/bin/gpg2 \
+      --ssh-options=-oStrictHostKeyChecking=no \
+      --archive-dir={{duplicity_dir}}/cache \
+      --use-agent \
+{% if duplicity_copy_links %}
+      --copy-links \
+{% endif %}
+{% for recipient in duplicity_gpg_recipients %}
+      --encrypt-key={{recipient.id[-16:]}} \
+{% endfor %}
+      --encrypt-key={{gpg_key_retrieve.stdout}} \
+    "$@"
+}
+
+mkdir -p {{duplicity_datadir}}
+{% for script in duplicity_scripts %}
+
+( # script-{{loop.index}}
+  {{script|trim|indent(2)}}
+) || true
+{% endfor %}
+
+w_duplicity {% if duplicity_full_if_older_than %}--full-if-older-than={{duplicity_full_if_older_than}} {% endif %}{{duplicity_datadir}} {{duplicity_target}}
+{% if duplicity_remove_all_inc_of_but_n_full %}
+w_duplicity --force remove-all-inc-of-but-n-full {{duplicity_remove_all_inc_of_but_n_full}} {{duplicity_target}}
+{% endif %}
+{% if duplicity_remove_older_than %}
+w_duplicity --force remove-older-than {{duplicity_remove_older_than}} {{duplicity_target}}
+{% endif %}

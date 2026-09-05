@@ -1,0 +1,46 @@
+#jinja2: trim_blocks:False
+{%- if sanoid_datasets -%}
+## Datasets
+##
+{%- for dataset in sanoid_datasets %}
+
+[{{ dataset.name }}]
+{%- for k, v in dataset.options.items() %}
+{%- if v is boolean %}
+{{ k }} = {% if v %}yes{% else %}no{% endif %}
+{%- elif k == "use_template" and v %}
+use_template = {{ v }}
+{%- elif k == "pre_snapshot_script" and v %}
+pre_snapshot_script = {{ sanoid_prefix }}/hooks/{{ dataset.name | replace("/", "__") }}_pre_snapshot.sh
+{%- elif k == "post_snapshot_script" and v %}
+post_snapshot_script = {{ sanoid_prefix }}/hooks/{{ dataset.name | replace("/", "__") }}_post_snapshot.sh
+{%- elif k == "pruning_script" and v %}
+pruning_script = {{ sanoid_prefix }}/hooks/{{ dataset.name | replace("/", "__") }}_pruning.sh
+{%- elif v is number or v %}
+{{ k }} = {{ v }}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+{%- endif %}
+{% if sanoid_templates %}
+## Templates
+##
+{%- for template in sanoid_templates %}
+
+[template_{{ template.name }}]
+{%- for k, v in template.options.items() %}
+{%- if v is boolean %}
+{{ k }} = {% if v %}yes{% else %}no{% endif %}
+{%- elif k == "pre_snapshot_script" and v %}
+pre_snapshot_script = {{ sanoid_prefix }}/hooks/template_{{ template.name }}_pre_snapshot.sh
+{%- elif k == "post_snapshot_script" and v %}
+post_snapshot_script = {{ sanoid_prefix }}/hooks/template_{{ template.name }}_post_snapshot.sh
+{%- elif k == "pruning_script" and v %}
+pruning_script = {{ sanoid_prefix }}/hooks/template_{{ template.name }}_pruning.sh
+{%- elif v is number or v %}
+{{ k }} = {{ v }}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+{%- endif %}

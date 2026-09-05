@@ -1,0 +1,31 @@
+---
+dehydrated_domains: []
+
+dehydrated_group: "{{ dehydrated_user }}"
+
+dehydrated_group_create: true
+
+dehydrated_group_extra_users:
+  - www
+
+dehydrated_lexicon_config: {}
+
+dehydrated_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/dehydrated/
+
+dehydrated_postcmds: []
+
+dehydrated_prefix: /usr/local/etc/dehydrated
+
+dehydrated_python_version: "3.9"
+
+dehydrated_staging: true
+
+dehydrated_user: "dehydrated"
+
+dehydrated_user_create: true
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

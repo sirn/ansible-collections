@@ -1,0 +1,142 @@
+---
+## Install
+##
+
+- name: install dehydrated dependencies
+  become: true
+  community.general.openbsd_pkg:
+    name:
+      - bash
+      - py3-pip
+      - py3-cryptography
+    state: latest
+
+- name: install dehydrated
+  become: true
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/lukas2511/dehydrated/v0.6.2/dehydrated
+    checksum: "sha256:7c1c484de3337127413518f6f7d68470e373785797c4a030ae58479d7ce70839"
+    dest: /usr/local/bin/dehydrated
+    mode: 0755
+
+- name: install lexicon
+  become: true
+  ansible.builtin.pip:
+    executable: pip3.6
+    name: dns-lexicon
+    state: present
+
+
+## Setup user
+##
+
+- name: create dehydrated user
+  become: true
+  ansible.builtin.user:
+    name: _dehydrated
+    uid: 932
+    state: present
+    home: /etc/dehydrated
+    shell: /sbin/nologin
+    create_home: false
+
+- name: ensure dehydrated directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: _dehydrated
+    group: _dehydrated
+    mode: 0750
+  with_items:
+    - /etc/dehydrated
+    - /etc/dehydrated/certs
+    - /var/www/dehydrated
+
+
+## Configure
+##
+
+- name: configure dehydrated hook script
+  become: true
+  ansible.builtin.copy:
+    src: hook.sh
+    dest: /etc/dehydrated/hook.sh
+    owner: _dehydrated
+    group: _dehydrated
+    mode: 0700
+
+- name: configure dehydrated domains
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/dehydrated/domains.txt
+    owner: _dehydrated
+    group: _dehydrated
+    mode: 0500
+    content: |
+      {% if dehydrated_domains %}
+      {% for domain in dehydrated_domains %}
+      {{ domain }}
+      {% endfor %}
+      {% endif %}
+
+- name: configure dehydrated
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/dehydrated/config
+    owner: _dehydrated
+    group: _dehydrated
+    mode: 0500
+    content: |
+      {% if dehydrated_staging %}
+      CA="https://acme-staging-v02.api.letsencrypt.org/directory"
+      {% endif %}
+
+
+## Setup
+##
+
+- name: setup letsencrypt account
+  become: true
+  become_user: _dehydrated
+  ansible.builtin.shell: |
+    #!/bin/sh -e
+    ACCOUNT_FILE=$(dehydrated -e | awk '/declare -- ACCOUNT_KEY=/ { print substr($3, 14, length($3)-14) }')
+    if test -e $ACCOUNT_FILE; then
+      exit 0
+    fi
+    dehydrated --register --accept-terms
+    exit 255
+  register: letsencrypt_account_create
+  changed_when: letsencrypt_account_create.rc == 255
+  failed_when: letsencrypt_account_create.rc > 0 and letsencrypt_account_create.rc < 255
+
+
+## Periodic
+##
+
+- name: configure dehydrated periodic script
+  become: true
+  ansible.builtin.template:
+    src: periodic.sh.j2
+    dest: /etc/dehydrated/periodic.sh
+    owner: _dehydrated
+    group: _dehydrated
+    mode: 0700
+
+- name: install dehydrated periodic cron
+  become: true
+  ansible.builtin.cron:
+    name: dehydrated periodic
+    special_time: weekly
+    job: /etc/dehydrated/periodic.sh
+
+
+## First run
+##
+
+- name: setup initial letsencrypt certs
+  become: true
+  ansible.builtin.command: sh /etc/dehydrated/periodic.sh
+  register: letsencrypt_initial_cert
+  changed_when: letsencrypt_initial_cert.stdout.find("unchanged_cert") == -1

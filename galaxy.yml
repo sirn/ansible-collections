@@ -1,0 +1,18 @@
+---
+namespace: sirn
+name: collections
+version: 1.0.0
+readme: README.md
+authors:
+  - Sirn Thanabulpong
+description: Personal collection of Ansible roles for FreeBSD and OpenBSD hosts.
+license:
+  - BSD-3-Clause
+tags:
+  - freebsd
+  - openbsd
+  - s6
+  - infrastructure
+repository: https://github.com/sirn/ansible-collections
+homepage: https://github.com/sirn/ansible-collections
+build_ignore: []

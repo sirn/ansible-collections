@@ -1,0 +1,24 @@
+---
+- name: enable racct
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  with_items:
+    - { key: "kern.racct.enable", value: "1" }
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: configure racct
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/rctl.conf
+    mode: "0644"
+    content: |
+      {% for rule in racct_rules %}
+      {{ rule }}
+      {% endfor %}
+  notify:
+    - reload racct

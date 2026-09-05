@@ -1,0 +1,76 @@
+---
+haproxy_prefix: /var/haproxy
+
+haproxy_maxconn: 4000
+
+haproxy_timeout_connect: 10000
+haproxy_timeout_server: 600000
+haproxy_timeout_client: 600000
+haproxy_timeout_queue: 60000
+
+haproxy_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/haproxy/
+
+haproxy_template: default.conf.j2
+
+haproxy_user: www
+
+## Extra configurations for `default.conf.j2' template
+##
+
+haproxy_backends: []
+# haproxy_backends:
+#   - name: prod
+#     mode: http
+#     hostname: example-prod
+#     address: "10.0.10.1"
+#     port: "8443"
+#     flags:
+#       - "ssl verify none"
+#       - "check fall 3 rise 2"
+#       - "send-proxy-v2"
+#     resolver: mydns
+
+haproxy_frontends: []
+# haproxy_frontends:
+#   - name: web
+#     mode: http
+#     binds:
+#       - address: "{{ public_ipv4 }}:8443"
+#         flags:
+#           - "ssl"
+#           - "crt /usr/local/etc/dehydrated/certs/example.com/fullbundle.pem"
+#           - "alpn h2,http/1.1"
+#     backends:
+#       - backend: prod
+#         acls:
+#           - acl: is-prod
+#             domain: example.com
+#           - acl: is-prod-ipv6
+#             domain: ipv6.example.com
+#           - acl: is-dev
+#             domain: dev.example.com
+#             mode: dom
+
+haproxy_stats: {}
+# haproxy_stats:
+#   binds:
+#     - "{{ public_ipv4 }}:8088"
+#   options:
+#     - "refresh 10s"
+#     - "admin if LOCALHOST"
+
+haproxy_resolvers: []
+# haproxy_resolvers:
+#   - name: mydns
+#     nameservers:
+#       - name: dns1
+#         address: 10.0.0.1:53
+#     resolve_retries: 3
+#     timeout_retry: 1s
+#     hold_valid: 10s
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

@@ -1,0 +1,38 @@
+---
+## Configure
+##
+
+- name: configure ntpd
+  become: true
+  ansible.builtin.template:
+    src: ntp.conf.j2
+    dest: /etc/ntp.conf
+    mode: "0644"
+    ## Removed for the time being as it's quite flaky as it requires
+    ## ntpd to be stopped to check configurations.
+    # validate: "ntpd -n -f %s"
+  notify:
+    - restart ntpd
+
+- name: enable ntpdate
+  become: true
+  ansible.builtin.service:
+    name: ntpdate
+    enabled: true
+  notify:
+    - start ntpdate
+
+- name: enable ntpd
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    enabled: true
+  notify:
+    - start ntpd
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

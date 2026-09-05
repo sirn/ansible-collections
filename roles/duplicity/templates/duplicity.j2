@@ -1,0 +1,14 @@
+#!/usr/local/bin/execlineb -P
+fdmove -c 2 1
+redirfd -r 0 /dev/null
+
+snooze {% if duplicity_snooze %}{{duplicity_snooze}} {% endif %}-v -t {{duplicity_dir}}/timefile
+
+if {
+  s6-setuidgid duplicity
+  export HOME {{duplicity_dir}}
+  export LANG en_US.UTF-8
+  sh {{duplicity_dir}}/wrapper.sh
+}
+
+touch {{duplicity_dir}}/timefile

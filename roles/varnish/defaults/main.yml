@@ -1,0 +1,34 @@
+---
+varnish_addresses:
+  - 127.0.0.1:8080
+  - 127.0.0.1:8081,PROXY
+
+varnish_builtin_vcl: true
+
+varnish_cloudflare: false
+
+varnish_cli_addresses:
+  - 127.0.0.1:4121
+
+varnish_flags:
+  - -p feature=+http2
+
+varnish_ncsa_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/varnishncsa/
+
+varnish_labels: []
+
+varnish_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/varnishd/
+
+varnish_prefix: /var/varnish
+
+varnish_size: 1024M
+
+varnish_version: 7
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

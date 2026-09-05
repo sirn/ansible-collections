@@ -1,0 +1,21 @@
+---
+- name: rescan dehydrated s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_dehydrated_s6
+  changed_when: rescan_dehydrated_s6 is succeeded
+  failed_when: rescan_dehydrated_s6 is not succeeded
+
+- name: restart dehydrated
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/dehydrated
+  register: restart_dehydrated_s6
+  changed_when: restart_dehydrated_s6 is succeeded
+  failed_when: restart_dehydrated_s6 is not succeeded
+
+- name: restart dehydrated logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/dehydrated/log
+  register: restart_dehydrated_logger
+  changed_when: restart_dehydrated_logger is succeeded
+  failed_when: restart_dehydrated_logger is not succeeded

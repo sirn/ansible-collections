@@ -1,0 +1,35 @@
+---
+- name: rescan sanoid s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_sanoid_s6
+  changed_when: rescan_sanoid_s6 is succeeded
+  failed_when: rescan_sanoid_s6 is not succeeded
+
+- name: restart sanoid
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/sanoid
+  register: restart_sanoid_s6
+  changed_when: restart_sanoid_s6 is succeeded
+  failed_when: restart_sanoid_s6 is not succeeded
+
+- name: restart sanoid logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/sanoid/log
+  register: restart_sanoid_logger
+  changed_when: restart_sanoid_logger is succeeded
+  failed_when: restart_sanoid_logger is not succeeded
+
+- name: restart sanoid-syncoid
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/sanoid-syncoid
+  register: restart_sanoid_syncoid_s6
+  changed_when: restart_sanoid_syncoid_s6 is succeeded
+  failed_when: restart_sanoid_syncoid_s6 is not succeeded
+
+- name: restart sanoid-syncoid logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/sanoid-syncoid/log
+  register: restart_sanoid_syncoid_logger
+  changed_when: restart_sanoid_syncoid_logger is succeeded
+  failed_when: restart_sanoid_syncoid_logger is not succeeded

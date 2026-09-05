@@ -1,0 +1,18 @@
+---
+collections:
+  - community.general
+
+galaxy_info:
+  author: Sirn Thanabulpong
+  description: Configure OpenNTPd.
+  license: BSD-3-Clause
+  min_ansible_version: 2.15.0
+  platforms:
+    - name: FreeBSD
+      versions:
+        - all
+    - name: OpenBSD
+      versions:
+        - all
+
+allow_duplicates: true

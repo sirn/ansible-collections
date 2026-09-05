@@ -1,0 +1,89 @@
+---
+## Installation
+##
+
+- name: install hitch
+  become: true
+  community.general.pkgng:
+    name: hitch
+    state: latest
+  notify:
+    - restart hitch
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: hitch
+    ## FreeBSD RC is using pid file to detect whether hitch is running
+    ## and will cause this task to try to stop hitch on every run.
+    # state: stopped
+    enabled: false
+
+## Configure
+##
+
+- name: ensure hitch configuration directory
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    owner: www
+    group: www
+  with_items:
+    - /usr/local/etc/hitch
+    - /var/lib/hitch
+
+- name: configure hitch.conf
+  become: true
+  ansible.builtin.template:
+    src: hitch.conf.j2
+    dest: /usr/local/etc/hitch/hitch.conf
+    owner: www
+    group: www
+  notify:
+    - restart hitch
+
+## Supervise
+##
+
+- name: ensure hitch service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+  with_items:
+    - /var/service/hitch
+    - /var/service/hitch/log
+
+- name: install hitch service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/hitch/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      {% if hitch_drop_privileges_early %}
+      s6-setuidgid www
+      {% endif %}
+      hitch --config /usr/local/etc/hitch/hitch.conf
+  notify:
+    - rescan hitch s6
+    - restart hitch
+
+- name: install hitch log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/hitch/log/run
+    mode: "0555"
+    content: "{{ hitch_logger }}"
+  notify:
+    - rescan hitch s6
+    - restart hitch logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

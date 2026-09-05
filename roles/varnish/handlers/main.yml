@@ -1,0 +1,35 @@
+---
+- name: rescan varnishd s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_varnishd_s6
+  changed_when: rescan_varnishd_s6 is succeeded
+  failed_when: rescan_varnishd_s6 is not succeeded
+
+- name: restart varnishd
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnishd
+  register: restart_varnishd
+  changed_when: restart_varnishd is succeeded
+  failed_when: restart_varnishd is not succeeded
+
+- name: restart varnishd logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnishd/log
+  register: restart_varnishd_logger
+  changed_when: restart_varnishd_logger is succeeded
+  failed_when: restart_varnishd_logger is not succeeded
+
+- name: restart varnishncsa
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnishncsa
+  register: restart_varnishncsa
+  changed_when: restart_varnishncsa is succeeded
+  failed_when: restart_varnishncsa is not succeeded
+
+- name: restart varnishncsa logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnishncsa/log
+  register: restart_varnishncsa_logger
+  changed_when: restart_varnishncsa_logger is succeeded
+  failed_when: restart_varnishncsa_logger is not succeeded

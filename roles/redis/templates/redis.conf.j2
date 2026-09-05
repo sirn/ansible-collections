@@ -1,0 +1,63 @@
+# Network
+{% for address in redis_addresses %}
+bind {{ address }}
+{% endfor %}
+{% if redis_unix_socket %}
+unixsocket {{ redis_unix_socket }}
+unixsocketperm {{ redis_unix_socket_perm }}
+{% endif %}
+protected-mode yes
+port {{ redis_port }}
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+{% if redis_tls %}
+tls-port {{ redis_tls_port }}
+tls-cert-file {{ redis_tls_cert_file }}
+tls-key-file {{ redis_tls_key_file }}
+{% if redis_tls_auth %}
+tls-auth-clients yes
+tls-ca-cert-file {{ redis_tls_auth_cacert_file }}
+{% else %}
+tls-auth-clients no
+{% endif %}
+{% endif %}
+
+# General
+daemonize no
+supervised no
+loglevel verbose
+logfile /dev/stderr
+databases {{ redis_databases }}
+always-show-logo yes
+{% if redis_max_memory %}
+maxmemory {{ redis_max_memory }}
+{% endif %}
+{% if redis_max_memory_policy %}
+maxmemory-policy {{ redis_max_memory_policy }}
+{% endif %}
+{% if redis_requirepass %}
+requirepass {{ redis_requirepass }}
+{% endif %}
+
+{% if redis_snapshotting %}
+# Snapshotting
+{% for snapshot in redis_snapshotting %}
+save {{ snapshot.after }} {{ snapshot.changes }}
+{% endfor %}
+{% endif %}
+stop-writes-on-bgsave-error no
+rdbcompression yes
+rdbchecksum yes
+dbfilename {{ redis_snapshot_filename }}
+dir {{ redis_snapshot_dir }}
+
+# Lazy freeing
+lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+slave-lazy-flush no
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128

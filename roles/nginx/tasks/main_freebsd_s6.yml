@@ -1,0 +1,141 @@
+---
+## Installation
+##
+
+- name: install nginx
+  become: true
+  community.general.pkgng:
+    name: nginx
+    state: present
+  notify:
+    - restart nginx
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: nginx
+    state: stopped
+    enabled: false
+
+## Cloudflare integration
+##
+
+- name: "enable cloudflare integration"
+  ansible.builtin.include_tasks:
+    file: "cloudflare.yml"
+  when: "nginx_cloudflare"
+
+## Configure
+##
+
+- name: ensure accf http kernel module
+  become: true
+  ansible.builtin.command: kldload accf_http
+  register: accf_http_load
+  when: nginx_accf_http and nginx_accf_http_load
+  changed_when: accf_http_load.rc == 0
+  failed_when: accf_http_load.rc > 1
+
+- name: configure boot loader for accf http
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?accf_http_load="
+    line: "accf_http_load=YES"
+  when: nginx_accf_http and nginx_accf_http_load
+
+- name: ensure accf data kernel module
+  become: true
+  ansible.builtin.command: kldload accf_data
+  register: accf_data_load
+  when: nginx_accf_data and nginx_accf_data_load
+  changed_when: accf_data_load.rc == 0
+  failed_when: accf_data_load.rc > 1
+
+- name: configure boot loader for accf data
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?accf_data_load="
+    line: "accf_data_load=YES"
+  when: nginx_accf_data and nginx_accf_data_load
+
+- name: ensure nginx configuration directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/etc/nginx
+    state: directory
+    owner: www
+    group: www
+    mode: "0755"
+
+- name: ensure nginx run directory
+  become: true
+  ansible.builtin.file:
+    path: /var/run/nginx
+    owner: www
+    group: www
+    state: directory
+    mode: "0755"
+
+- name: configure nginx
+  become: true
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /usr/local/etc/nginx/nginx.conf
+    owner: www
+    group: www
+    mode: "0644"
+    validate: "nginx -t -c %s"
+  notify:
+    - restart nginx
+
+## Supervise
+##
+
+- name: ensure nginx service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/nginx
+    - /var/service/nginx/log
+
+- name: install nginx service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/nginx/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      {% if nginx_drop_privileges_early %}
+      if { mkdir -p /var/run/nginx }
+      if { mkdir -p /var/tmp/nginx }
+      if { chown -R www:www /var/run/nginx }
+      if { chown -R www:www /var/tmp/nginx }
+      s6-setuidgid www
+      {% endif %}
+      /usr/local/sbin/nginx -c /usr/local/etc/nginx/nginx.conf
+  notify:
+    - rescan nginx s6
+    - restart nginx
+
+- name: install nginx logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/nginx/log/run
+    mode: "0555"
+    content: "{{ nginx_logger }}"
+  notify:
+    - rescan nginx s6
+    - restart nginx logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,53 @@
+---
+- name: rescan mrtg s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_mrtg_s6
+  changed_when: rescan_mrtg_s6 is succeeded
+  failed_when: rescan_mrtg_s6 is not succeeded
+
+- name: restart mrtg
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mrtg
+  register: restart_mrtg
+  changed_when: restart_mrtg is succeeded
+  failed_when: restart_mrtg is not succeeded
+
+- name: restart mrtg logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mrtg/log
+  register: restart_mrtg_logger
+  changed_when: restart_mrtg_logger is succeeded
+  failed_when: restart_mrtg_logger is not succeeded
+
+- name: regenerate mrtg index
+  become: true
+  ansible.builtin.shell: |
+    #!/bin/sh
+    set -o pipefail
+    INDEX="{{ mrtg_workdir }}/index.html"
+    CONFIG="/usr/local/etc/mrtg/mrtg.cfg"
+    s6-setuidgid mrtg /usr/local/bin/mrtg "$CONFIG" || true
+    s6-setuidgid mrtg /usr/local/bin/mrtg "$CONFIG" || true
+    s6-setuidgid mrtg /usr/local/bin/mrtg "$CONFIG" || true
+    /usr/local/bin/indexmaker "$CONFIG" | s6-setuidgid mrtg tee "$INDEX"
+  register: regenerate_mrtg_index
+  changed_when: regenerate_mrtg_index is succeeded
+  failed_when: regenerate_mrtg_index is not succeeded
+
+- name: chown mrtg index
+  become: true
+  ansible.builtin.file:
+    path: "{{ mrtg_workdir }}/index.html"
+    state: file
+    owner: "{{ mrtg_user }}"
+    group: "{{ mrtg_group }}"
+    mode: "0644"
+
+- name: stop mrtg
+  become: true
+  ansible.builtin.service:
+    name: mrtg_daemon
+    state: stopped
+  register: stop_mrtg
+  ignore_errors: true

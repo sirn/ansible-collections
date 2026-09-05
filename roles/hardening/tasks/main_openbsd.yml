@@ -1,0 +1,86 @@
+---
+## Auditing tools
+##
+
+- name: install auditing tools
+  become: true
+  community.general.openbsd_pkg:
+    name: lynis
+    state: latest
+
+
+## SSH
+##
+
+- name: configure ssh
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "{{ item.key }} {{ item.value }}"
+    regexp: '^#?( +)?{{ item.key }} .*$'
+    validate: 'sshd -tf %s'
+    create: true
+  with_items:
+    - { key: "AllowAgentForwarding", value: "no" }
+    - { key: "AllowTcpForwarding", value: "no" }
+    - { key: "ClientAliveCountMax", value: "2" }
+    - { key: "Compression", value: "no" }
+    - { key: "LogLevel", value: "VERBOSE" }
+    - { key: "MaxAuthTries", value: "2" }
+    - { key: "MaxSessions", value: "2" }
+    - { key: "PermitRootLogin", value: "no" }
+    - { key: "Port", value: "{{ hardening_ssh_port }}" }
+    - { key: "TCPKeepAlive", value: "no" }
+    - { key: "UseDNS", value: "no" }
+    - { key: "X11Forwarding", value: "no" }
+  notify:
+    - reload sshd
+
+
+## Doas
+##
+
+- name: ensure doas.conf permission
+  become: true
+  ansible.builtin.file:
+    path: /etc/doas.conf
+    owner: root
+    group: wheel
+    mode: 0600
+
+
+## Accounting
+##
+
+- name: enable process accounting
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf.local
+    line: "accounting=YES"
+    regexp: '^#?( +)?accounting='
+    create: true
+  register: enable_accounting
+
+- name: ensure accounting file
+  become: true
+  ansible.builtin.file:
+    path: /var/account/acct
+    state: touch
+    owner: root
+    group: wheel
+    mode: 0600
+    access_time: preserve
+    modification_time: preserve
+
+- name: enable accounting
+  become: true
+  ansible.builtin.command: accton /var/account/acct
+  when: enable_accounting.changed
+
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

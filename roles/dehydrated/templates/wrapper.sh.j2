@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+{% if dehydrated_lexicon_config %}
+s6-setuidgid dehydrated \
+  env \
+      PATH="/sbin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin" \
+{% for key, value in dehydrated_lexicon_config.items() %}
+      {{ key }}="{{ value }}" \
+{% endfor %}
+{% endif %}
+    /usr/local/bin/dehydrated \
+      --hook /usr/local/etc/dehydrated/hook.sh \
+      --challenge dns-01 \
+      --cron
+{% if dehydrated_postcmds %}
+{% for postcmd in dehydrated_postcmds %}
+
+( # postcmd-{{ loop.index }}
+  {{ postcmd | trim | indent(2) }}
+) || true
+{% endfor %}
+{% endif %}

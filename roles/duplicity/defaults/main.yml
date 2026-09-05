@@ -1,0 +1,41 @@
+---
+duplicity_copy_links: false
+
+duplicity_dir: /var/duplicity
+
+duplicity_datadir: "{{ duplicity_dir }}/backup"
+
+duplicity_full_if_older_than: 1W
+
+duplicity_gpg_recipients:
+  - url: https://example.com/pgp_keys.asc
+    id: 0000000000000000000000000000000000000000
+
+duplicity_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/duplicity/
+
+duplicity_remove_all_inc_of_but_n_full: 4
+
+duplicity_remove_older_than: 12M
+
+duplicity_scripts:
+  - |
+    redirfd -w 1 {{ duplicity_datadir }}/date.txt
+    date +"%s"
+
+duplicity_snooze: "-H*"
+
+duplicity_ssh_keygen: true
+
+duplicity_ssh_keytype: ed25519
+
+duplicity_ssh_dir: "{{ duplicity_dir }}/.ssh"
+
+duplicity_ssh_keyfile: "{{ duplicity_ssh_dir }}/id_{{ duplicity_ssh_keytype }}"
+
+duplicity_target: file:///tmp/backups
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

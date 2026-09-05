@@ -1,0 +1,79 @@
+---
+## Install
+##
+
+- name: install haproxy
+  become: true
+  community.general.pkgng:
+    name: haproxy
+    state: latest
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  with_items:
+    - haproxy
+
+## Configure
+##
+
+- name: setup directories for haproxy
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - "{{ haproxy_prefix }}/config"
+
+- name: configure haproxy.conf
+  become: true
+  ansible.builtin.template:
+    src: "{{ haproxy_template }}"
+    dest: "{{ haproxy_prefix }}/config/haproxy.conf"
+    mode: "0644"
+  notify:
+    - restart haproxy
+
+## Supervise
+##
+
+- name: ensure haproxy service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/haproxy
+    - /var/service/haproxy/log
+
+- name: install haproxy service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/haproxy/run
+    mode: "0555"
+  notify:
+    - rescan haproxy s6
+    - restart haproxy
+
+- name: install haproxy s6 logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/haproxy/log/run
+    mode: "0555"
+    content: "{{ haproxy_logger }}"
+  notify:
+    - rescan haproxy s6
+    - restart haproxy logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

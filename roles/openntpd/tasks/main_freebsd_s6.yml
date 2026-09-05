@@ -1,0 +1,76 @@
+---
+## Install
+##
+
+- name: install openntpd
+  become: true
+  community.general.pkgng:
+    name: openntpd
+    state: latest
+  notify:
+    - restart openntpd
+
+- name: disable redundant services
+  become: true
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  with_items:
+    - ntpd
+    ## FreeBSD RC is using pgrep to detect whether openntpd is running
+    ## and will cause this task to try to stop openntpd on every run.
+    # - openntpd
+
+## Configure
+##
+
+- name: configure openntpd
+  become: true
+  ansible.builtin.template:
+    src: ntpd.conf.j2
+    dest: /usr/local/etc/ntpd.conf
+  notify:
+    - restart openntpd
+
+## Supervise
+##
+
+- name: ensure openntpd service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+  with_items:
+    - /var/service/openntpd
+    - /var/service/openntpd/log
+
+- name: install openntpd service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/openntpd/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      fdmove -c 2 1
+      /usr/local/sbin/ntpd{% if openntpd_force_sync %} -s{% endif %} -d -f /usr/local/etc/ntpd.conf
+  notify:
+    - rescan openntpd s6
+    - restart openntpd
+
+- name: install openntpd log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/openntpd/log/run
+    mode: "0555"
+    content: "{{ openntpd_logger }}"
+  notify:
+    - rescan openntpd s6
+    - restart openntpd logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

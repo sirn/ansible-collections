@@ -1,0 +1,206 @@
+---
+## Default RCs
+##
+
+- name: enable clear tmp
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf
+    regexp: "^#?( +)?clear_tmp_enable=.*$"
+    line: 'clear_tmp_enable="YES"'
+    mode: "0644"
+
+## CC algorithm
+##
+
+- name: configure cc module loading
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^cc_.*_load=.*$"
+    line: "cc_{{ tuning_cc_algorithm }}_load=YES"
+    mode: "0644"
+  when: |
+    tuning_cc_algorithm in ("chd", "cubic", "hd", "newreno", "vegas", "htcp")
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: configure cc algorithm
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^#?( +)?net\.inet\.tcp\.cc\.algorithm='
+    line: "net.inet.tcp.cc.algorithm={{ tuning_cc_algorithm }}"
+    mode: "0644"
+  when: |
+    tuning_cc_algorithm in ("chd", "cubic", "hd", "newreno", "vegas", "htcp")
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: configure htcp parameters
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    mode: "0644"
+  when: tuning_cc_algorithm == "htcp"
+  with_items:
+    - key: "net.inet.tcp.cc.htcp.adaptive_backoff"
+      value: "1"
+    - key: "net.inet.tcp.cc.htcp.rtt_scaling"
+      value: "1"
+  notify:
+    - reboot system
+    - wait for system reboot
+
+## TSC invariant
+##
+
+- name: configure invariant tsc
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    mode: "0644"
+  when: tuning_disable_tsc_calibration
+  with_items:
+    - key: "kern.timecounter.invariant_tsc"
+      value: "1"
+    - key: "machdep.disable_tsc_calibration"
+      value: "1"
+  notify:
+    - reboot system
+    - wait for system reboot
+
+## Usermount
+##
+
+- name: configure usermount
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^#?( +)?vfs\.usermount='
+    line: "vfs.usermount=1"
+    mode: "0644"
+  when: tuning_vfs_usermount
+  notify:
+    - reboot system
+    - wait for system reboot
+
+## Disable LRO for vtnet
+##
+
+- name: configure vtnet lro
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^#?( +)?hw\.vtnet\.lro_disable='
+    line: "hw.vtnet.lro_disable=1"
+    mode: "0644"
+  when: tuning_lro_disable
+  notify:
+    - reboot system
+    - wait for system reboot
+
+## Other tunings
+## https://calomel.org/freebsd_network_tuning.html
+##
+
+- name: configure boot loader
+  become: true
+  ansible.builtin.lineinfile:
+    path: /boot/loader.conf
+    regexp: "^#?( +)?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    mode: "0644"
+  with_items:
+    - key: "kern.geom.label.disk_ident.enable"
+      value: "0"
+    - key: "kern.geom.label.gptid.enable"
+      value: "0"
+    - key: "net.inet.tcp.hostcache.cachelimit"
+      value: "0"
+    - key: "net.inet.tcp.soreceive_stream"
+      value: "1"
+    - key: "net.inet.tcp.tcbhashsize"
+      value: "65536"
+    - key: "net.inet.tcp.syncache.bucketlimit"
+      value: "100"
+    - key: "net.inet.tcp.syncache.hashsize"
+      value: "1024"
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: configure sysctl
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: "^#?( +)?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    mode: "0644"
+  with_items:
+    - key: "kern.ipc.maxsockbuf"
+      value: "16777216"
+    - key: "kern.ipc.soacceptqueue"
+      value: "{{ tuning_soacceptqueue }}"
+    - key: "kern.maxfiles"
+      value: "2048000"
+    - key: "kern.maxfilesperproc"
+      value: "204800"
+    - key: "kern.maxvnodes"
+      value: "2048000"
+    - key: "kern.ps_arg_cache_limit"
+      value: "4096"
+    - key: "kern.sched.slice"
+      value: "1"
+    - key: "net.inet.ip.maxfragpackets"
+      value: "0"
+    - key: "net.inet.ip.maxfragsperpacket"
+      value: "0"
+    - key: "net.inet.tcp.abc_l_var"
+      value: "44"
+    - key: "net.inet.tcp.initcwnd_segments"
+      value: "44"
+    - key: "net.inet.tcp.isn_reseed_interval"
+      value: "4500"
+    - key: "net.inet.tcp.minmss"
+      value: "536"
+    - key: "net.inet.tcp.mssdflt"
+      value: "1460"
+    - key: "net.inet.tcp.sendspace"
+      value: "65536"
+    - key: "net.inet.tcp.syncache.rexmtlimit"
+      value: "0"
+    - key: "net.inet.tcp.syncookies"
+      value: "0"
+    - key: "net.inet6.ip6.maxfragpackets"
+      value: "0"
+    - key: "net.inet6.ip6.maxfrags"
+      value: "0"
+  notify:
+    - restart sysctl
+
+- name: remove deprecated sysctl entries
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: "^#?( +)?{{ item }}="
+    state: absent
+  with_items:
+    - "net.inet.tcp.recvbuf_inc"
+    - "net.inet.tcp.rfc6675_pipe"
+    - "net.inet.tcp.sendbuf_inc"
+  notify:
+    - restart sysctl
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

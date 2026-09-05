@@ -1,0 +1,193 @@
+---
+## Installation
+##
+
+- name: install mysql
+  become: true
+  community.general.pkgng:
+    name:
+      - "{{ mysql_package }}-client"
+      - "{{ mysql_package }}-server"
+    state: latest
+  notify:
+    - restart mysqld
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: mysql-server
+    state: stopped
+    enabled: false
+
+## Configure
+##
+
+- name: ensure mysql directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/etc/mysql
+    state: directory
+    mode: "0700"
+    owner: mysql
+    group: mysql
+
+- name: ensure mysql run directory
+  become: true
+  ansible.builtin.file:
+    path: /var/run/mysql
+    mode: "0755"
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: configure my.cnf
+  become: true
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /usr/local/etc/mysql/my.cnf
+    mode: "0600"
+    owner: mysql
+    group: mysql
+  notify:
+    - restart mysqld
+
+## Initdb
+##
+
+- name: ensure mysql data directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0700"
+    owner: mysql
+    group: mysql
+  with_items:
+    - "{{ mysql_dir }}"
+    - "{{ mysql_dir_innodb }}"
+    - "{{ mysql_dir_log }}"
+
+- name: initialize mysql database
+  become: true
+  become_user: mysql
+  ansible.builtin.shell: |
+    /usr/local/bin/mysql_install_db \
+      --basedir=/usr/local \
+      --datadir={{ mysql_dir }} \
+      --defaults-extra-file=/usr/local/etc/mysql/my.cnf \
+      --force
+  args:
+    creates: "{{ mysql_dir }}/mysql"
+
+## Supervise
+##
+
+- name: ensure mysql service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/mysqld
+    - /var/service/mysqld/log
+
+- name: install mysql service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/mysqld/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      s6-setuidgid mysql
+      fdmove -c 2 1
+      /usr/local/bin/mysqld_safe
+        --defaults-extra-file=/usr/local/etc/mysql/my.cnf
+        --datadir={{ mysql_dir }}
+  notify:
+    - rescan mysqld s6
+    - restart mysqld
+
+- name: install mysql log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/mysqld/log/run
+    mode: "0555"
+    content: "{{ mysql_logger }}"
+  notify:
+    - rescan mysqld s6
+    - restart mysqld logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
+
+## Database setup
+##
+
+- name: install mysql tools
+  become: true
+  community.general.pkgng:
+    name:
+      - python{{ mysql_python_version | replace(".", "") }}
+      - py{{ mysql_python_version | replace(".", "") }}-pymysql
+    state: latest
+
+- name: start mysql prior to database creation
+  become: true
+  ansible.builtin.shell: |
+    s6-svscanctl -an /var/service && s6-svc -wu /var/service/mysqld
+  changed_when: false
+
+- name: setup mysql superuser
+  become: true
+  ansible.mysql.mysql_user:
+    name: root
+    password: "{{ mysql_password }}"
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+  register: setup_mysql_superuser
+  failed_when: false
+
+- name: remove non-local mysql root user
+  ansible.mysql.mysql_user:
+    name: root
+    host: "{{ item }}"
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_password }}"
+    login_unix_socket: "{{ mysql_socket }}"
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+
+- name: remove anonymous mysql users
+  ansible.mysql.mysql_user:
+    name: ""
+    host: "{{ item }}"
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_password }}"
+    login_unix_socket: "{{ mysql_socket }}"
+  with_items:
+    - "{{ ansible_hostname }}"
+    - localhost
+    - 127.0.0.1
+    - ::1
+
+- name: setup mysql users
+  ansible.mysql.mysql_user:
+    name: "{{ item.user }}"
+    host: "{{ item.host }}"
+    password: "{{ item.password | default('') }}"
+    priv: "{{ item.grants | join(',') }}"
+    login_user: root
+    login_password: "{{ mysql_password }}"
+    login_unix_socket: "{{ mysql_socket }}"
+  with_items: "{{ mysql_databases }}"
+  loop_control:
+    label: "{{ item.user }}"

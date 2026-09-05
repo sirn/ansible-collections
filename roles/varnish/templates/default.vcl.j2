@@ -1,0 +1,12 @@
+vcl 4.1;
+
+import std;
+
+backend default {
+    .host = "127.0.0.1";
+    .port = "8090";
+}
+
+sub vcl_recv {
+    return (synth(503, "Service Unavailable"));
+}

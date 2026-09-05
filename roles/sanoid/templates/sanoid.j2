@@ -1,0 +1,10 @@
+#!/usr/local/bin/execlineb -P
+fdmove -c 2 1
+redirfd -r 0 /dev/null
+
+define datadir {{ sanoid_prefix }}
+define timefile ${datadir}/timefile
+
+snooze {{ sanoid_snooze_args }} -t ${timefile}
+if { sanoid --cron }
+touch ${timefile}

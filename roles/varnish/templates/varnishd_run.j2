@@ -1,0 +1,20 @@
+#!/usr/local/bin/execlineb -P
+emptyenv
+fdmove -c 2 1
+s6-setuidgid varnish
+/usr/local/sbin/varnishd
+    -F
+    -n {{ varnish_prefix }}/data/{{ ansible_hostname }}
+    -s malloc,{{ varnish_size }}
+    -j none
+{% for address in varnish_addresses %}
+    -a {{ address }}
+{% endfor %}
+{% for address in varnish_cli_addresses %}
+    -T {{ address }}
+{% endfor %}
+    -f {{ varnish_prefix }}/config/default.vcl
+    -I {{ varnish_prefix }}/config/boot
+{% for flag in varnish_flags %}
+    {{ flag }}
+{% endfor %}

@@ -1,0 +1,308 @@
+daemon off;
+worker_processes {{ nginx_worker_processes }};
+pid /var/run/nginx/nginx.pid;
+error_log {{ nginx_error_log }} {{ nginx_error_log_level }};
+{% if not nginx_drop_privileges_early %}
+user www www;
+{% endif %}
+{% if nginx_stream %}
+load_module /usr/local/libexec/nginx/ngx_stream_module.so;
+{% endif %}
+
+events {
+  worker_connections {{ nginx_worker_connections }};
+}
+{# ########################################################################### #}
+{# HTTP START #}
+{# ########################################################################### #}
+{% if nginx_http %}
+
+http {
+  include /usr/local/etc/nginx/mime.types;
+  default_type application/octet-stream;
+  access_log {{ nginx_access_log }};
+
+  server_names_hash_bucket_size {{ nginx_server_names_hash_bucket_size }};
+  types_hash_max_size {{ nginx_types_hash_max_size }};
+  keepalive_timeout {{ nginx_keepalive_timeout }};
+
+  tcp_nodelay on;
+  tcp_nopush on;
+  sendfile on;
+
+  map $scheme$http_x_forwarded_proto $forwarded_scheme {
+    default http;
+    https https;
+    httphttps https;
+  }
+
+  map $forwarded_scheme $fastcgi_https {
+    default off;
+    https on;
+  }
+{% if nginx_gzip %}
+
+  gzip on;
+  gzip_types {{ nginx_gzip_types|join(' ') }};
+  gzip_proxied any;
+  gzip_buffers 16 8k;
+  gzip_comp_level 9;
+  gzip_min_length 16;
+{% endif %}
+
+  client_body_buffer_size {{ nginx_client_body_buffer_size }};
+  client_max_body_size {{ nginx_client_max_body_size }};
+{% if nginx_config %}
+
+  {{ nginx_config|trim|indent(2) }}
+{% endif %}
+{% if nginx_cloudflare %}
+
+  include /usr/local/etc/nginx/cloudflare.conf;
+{% endif %}
+{# ########################################################################### #}
+{# SITE START #}
+{# ########################################################################### #}
+{% if nginx_sites %}
+{% set ns = namespace(accf_data_ipv4=false, accf_data_ipv6=false, accf_http_ipv4=false, accf_http_ipv6=false) %}
+{% for site_conf in nginx_sites %}
+{# *************************************************************************** #}
+{# PROXY UPSTREAM START #}
+{# *************************************************************************** #}
+{% if "locations" in site_conf and site_conf.locations %}
+{% for location in site_conf.locations %}
+{% if "proxy_name" in location %}
+
+  upstream {{ location.proxy_name }}_proxy {
+{% for backend in location.proxy_backends %}
+    server {{ backend }};
+{% endfor %}
+  }
+{% endif %}
+{% endfor %}
+{# *************************************************************************** #}
+{# PROXY UPSTREAM END #}
+{# FASTCGI UPSTREAM START #}
+{% for location in site_conf.locations %}
+{% if "fastcgi_name" in location %}
+
+  upstream {{ location.fastcgi_name }}_fastcgi {
+{% for backend in location.fastcgi_backends %}
+    server {{ backend }};
+{% endfor %}
+  }
+{% endif %}
+{% endfor %}
+{% endif %}
+{# FASTCGI UPSTREAM END #}
+{# SERVER START #}
+{# *************************************************************************** #}
+
+  server {
+{# =========================================================================== #}
+{# SERVER NAME START #}
+{# =========================================================================== #}
+{% if "domains" in site_conf and site_conf.domains %}
+    server_name{% for domain in site_conf.domains %} {{ domain }}{% endfor %};
+{% else %}
+    server_name _;
+{% endif %}
+{# =========================================================================== #}
+{# SERVER NAME END #}
+{# LISTEN START #}
+{# =========================================================================== #}
+{% if "secure" in site_conf and site_conf.secure %}
+{% if nginx_ipv4 %}
+    listen {{ nginx_https_port }} ssl http2{% if "default" in site_conf and site_conf.default %} default_server{% endif %}{% if nginx_accf_data and not ns.accf_data_ipv4 %} accept_filter=dataready{% set ns.accf_data_ipv4 = true %}{% endif %};
+{% endif %}
+{% if nginx_ipv6 %}
+    listen [::]:{{ nginx_https_port }} ssl http2{% if "default" in site_conf and site_conf.default %} default_server{% endif %}{% if nginx_accf_data and not ns.accf_data_ipv6 %} accept_filter=dataready{% set ns.accf_data_ipv6 = true %}{% endif %};
+{% endif %}
+
+{% if "dehydrated_cert" in site_conf and site_conf.dehydrated_cert %}
+    ssl_certificate /usr/local/etc/dehydrated/certs/{{ site_conf.dehydrated_cert }}/fullchain.pem;
+    ssl_certificate_key /usr/local/etc/dehydrated/certs/{{ site_conf.dehydrated_cert }}/privkey.pem;
+{% elif "cert" in site_conf and "cert_key" in site_conf %}
+    ssl_certificate {{ site_conf.cert }};
+    ssl_certificate_key {{ site_conf.cert_key }};
+{% endif %}
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+    ssl_prefer_server_ciphers on;
+
+{% else %}
+{% if nginx_ipv4 %}
+    listen {{ nginx_http_port }}{% if "default" in site_conf and site_conf.default %} default_server{% endif %}{% if nginx_accf_http and not ns.accf_http_ipv4 %} accept_filter=httpready{% set ns.accf_http_ipv4 = true %}{% endif %};
+{% endif %}
+{% if nginx_ipv6 %}
+    listen [::]:{{ nginx_http_port }}{% if "default" in site_conf and site_conf.default %} default_server{% endif %}{% if nginx_accf_http and not ns.accf_http_ipv6 %} accept_filter=httpready{% set ns.accf_http_ipv6 = true %}{% endif %};
+{% endif %}
+
+{% endif %}
+{# =========================================================================== #}
+{# LISTEN END #}
+{# ROOT START #}
+{# =========================================================================== #}
+{% if "root" in site_conf and site_conf.root %}
+    root {{ site_conf.root }};
+    absolute_redirect off;
+
+{% endif %}
+{# =========================================================================== #}
+{# ROOT END #}
+{# CONF START #}
+{# =========================================================================== #}
+{% if "config" in site_conf and site_conf.config %}
+    {{ site_conf.config|trim|indent(4) }}
+
+{% endif %}
+{# =========================================================================== #}
+{# CONF END #}
+{# =========================================================================== #}
+    location ~ /(\.git|\.env|\.ht) {
+      deny all;
+      return 404;
+    }
+{# =========================================================================== #}
+{# LOCATION START #}
+{# =========================================================================== #}
+{% if "locations" in site_conf and site_conf.locations %}
+{% for location in site_conf.locations %}
+
+    location {{ location.path }} {
+{# --------------------------------------------------------------------------- #}
+{# REDIRECT #}
+{# --------------------------------------------------------------------------- #}
+{% if "redirect_match" in location and "redirect_target" in location %}
+      rewrite {{ location.redirect_match }} {{ location.redirect_target }} redirect;
+{# --------------------------------------------------------------------------- #}
+{# PROXY #}
+{# --------------------------------------------------------------------------- #}
+{% elif "proxy_name" in location or "proxy_backends" in location %}
+      proxy_http_version 1.1;
+{% if "proxy_connection_upgrade" in location and location.proxy_connection_upgrade %}
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+{% endif %}
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $forwarded_scheme;
+{% if "proxy_read_timeout" in location and location.proxy_read_timeout %}
+      proxy_read_timeout {{ location.proxy_read_timeout }};
+{% endif %}
+{% if "proxy_connect_timeout" in location and location.proxy_connect_timeout %}
+      proxy_connect_timeout {{ location.proxy_connect_timeout }};
+{% endif %}
+{% if "proxy_name" in location %}
+      proxy_pass {% if "proxy_secure" in location and location.proxy_secure %}https{% else %}http{% endif %}://{{ location.proxy_name }}_proxy;
+{% else %}
+{% for backend in location.proxy_backends %}
+      proxy_pass {{ backend }};
+{% endfor %}
+{% endif %}
+{# --------------------------------------------------------------------------- #}
+{# FASTCGI #}
+{# --------------------------------------------------------------------------- #}
+{% elif "fastcgi_name" in location or "fastcgi_backends" in location %}
+      include /usr/local/etc/nginx/fastcgi_params;
+      fastcgi_param HTTPS $fastcgi_https;
+{% if "fastcgi_read_timeout" in location and location.fastcgi_read_timeout %}
+      fastcgi_connect_timeout {{ location.fastcgi_read_timeout }};
+{% endif %}
+{% if "fastcgi_connect_timeout" in location and location.fastcgi_connect_timeout %}
+      fastcgi_connect_timeout {{ location.fastcgi_connect_timeout }};
+{% endif %}
+      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+{% if "fastcgi_name" in location %}
+      fastcgi_pass {{ location.fastcgi_name }};
+{% else %}
+{% for backend in location.fastcgi_backends %}
+      fastcgi_pass {{ backend }};
+{% endfor %}
+{% endif %}
+{% endif %}
+{# --------------------------------------------------------------------------- #}
+{# CUSTOM #}
+{# --------------------------------------------------------------------------- #}
+{% if "config" in location and location.config %}
+      {{ location.config|trim|indent(6) }}
+{% endif %}
+    }
+{% endfor %}
+{% endif %}
+{# =========================================================================== #}
+{# LOCATION END #}
+{# =========================================================================== #}
+  }
+{# *************************************************************************** #}
+{# SERVER END #}
+{# *************************************************************************** #}
+{% endfor %}
+{% endif %}
+{# ########################################################################### #}
+{# SITE END #}
+{# ########################################################################### #}
+}
+{% endif %}
+{# ########################################################################### #}
+{# HTTP END #}
+{# ########################################################################### #}
+{# ########################################################################### #}
+{# STREAM START #}
+{# ########################################################################### #}
+{% if nginx_stream %}
+
+stream {
+{# *************************************************************************** #}
+{# STREAM UPSTREAM START #}
+{# *************************************************************************** #}
+{% if nginx_stream_config %}
+
+  {{ nginx_stream_config|trim|indent(2) }}
+{% endif %}
+{% for stream in nginx_streams %}
+  upstream {{ stream.proxy_name }}_stream {
+    hash $remote_addr consistent;
+{% for backend in stream.proxy_backends %}
+    server {{ backend }};
+{% endfor %}
+  }
+
+{% endfor %}
+{% for stream in nginx_streams %}
+  server {
+{% if nginx_ipv4 %}
+    listen {{ stream.port }}{% if "secure" in stream and stream.secure %} ssl{% endif %}{% if "proxy_protocol" in stream and stream.proxy_protocol %} proxy_protocol{% endif %}{% if "bind" in stream and stream.bind %} bind{% endif %}{% if "udp" in stream and stream.udp %} udp{% endif %}{% if "reuseport" in stream and stream.reuseport %} reuseport{% endif %};
+{% endif %}
+{% if nginx_ipv6 %}
+    listen [::]:{{ stream.port }}{% if "secure" in stream and stream.secure %} ssl{% endif %}{% if "proxy_protocol" in stream and stream.proxy_protocol %} proxy_protocol{% endif %}{% if "bind" in stream and stream.bind %} bind{% endif %}{% if "udp" in stream and stream.udp %} udp{% endif %}{% if "reuseport" in stream and stream.reuseport %} reuseport{% endif %};
+{% endif %}
+{% if "dehydrated_cert" in stream and stream.dehydrated_cert %}
+{% if "secure" in stream and stream.secure %}
+    ssl_certificate /usr/local/etc/dehydrated/certs/{{ stream.dehydrated_cert }}/fullchain.pem;
+    ssl_certificate_key /usr/local/etc/dehydrated/certs/{{ stream.dehydrated_cert }}/privkey.pem;
+{% elif "cert" in stream and "cert_key" in stream %}
+    ssl_certificate {{ stream.cert }};
+    ssl_certificate_key {{ stream.cert_key }};
+{% endif %}
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+    ssl_prefer_server_ciphers on;
+
+{% endif %}
+{% if "proxy_read_timeout" in stream and stream.proxy_read_timeout %}
+    proxy_read_timeout {{ stream.proxy_read_timeout }};
+{% endif %}
+{% if "proxy_connect_timeout" in stream and stream.proxy_connect_timeout %}
+    proxy_connect_timeout {{ stream.proxy_connect_timeout }};
+{% endif %}
+    proxy_pass {{ stream.proxy_name }}_stream;
+  }
+{% endfor %}
+{# *************************************************************************** #}
+{# STREAM UPSTREAM END #}
+}
+{% endif %}
+{# ########################################################################### #}
+{# SITE END #}
+{# ########################################################################### #}

@@ -1,0 +1,33 @@
+---
+mrtg_group: "{{ mrtg_user }}"
+
+mrtg_group_create: false
+
+mrtg_interval: 5
+
+mrtg_options:
+  - growright
+
+mrtg_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/mrtg/
+
+mrtg_refresh: 300
+
+mrtg_targets:
+  - name: vtnet0
+    target: "`/usr/local/etc/mrtg/mrtg_net.sh vtnet0 link`;"
+    fields:
+      Title: Network traffic on vtnet0
+      MaxBytes: 12500000
+      PageTop: <h1>Network traffic on vtnet0</h1>
+
+mrtg_user: mrtg
+
+mrtg_user_create: false
+
+mrtg_workdir: /var/www/mrtg
+
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

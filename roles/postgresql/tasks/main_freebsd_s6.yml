@@ -1,0 +1,233 @@
+---
+## Installation
+##
+
+- name: install postgresql
+  become: true
+  community.general.pkgng:
+    name:
+      - "postgresql{{ postgresql_version }}-server"
+      - "postgresql{{ postgresql_version }}-client"
+    state: present
+  notify:
+    - restart postgresql
+
+- name: disable redundant service
+  become: true
+  ansible.builtin.service:
+    name: postgresql
+    ## FreeBSD RC is using pg_ctl to control the state of postgresql
+    ## and will cause this task to never succeed since S6 will restart
+    ## the process.
+    # state: stopped
+    enabled: false
+
+## User
+##
+
+- name: create postgresql group
+  become: true
+  ansible.builtin.group:
+    name: "{{ postgresql_group }}"
+    system: true
+    state: present
+  when: postgresql_group_create
+
+- name: create postgresql user
+  become: true
+  ansible.builtin.user:
+    name: "{{ postgresql_user }}"
+    home: "{{ postgresql_prefix }}"
+    state: present
+    shell: /sbin/nologin
+    system: true
+    create_home: false
+    append: true
+    groups:
+      - "{{ postgresql_group }}"
+  when: postgresql_user_create
+
+- name: add extra users to postgresql group
+  become: true
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups:
+      - "{{ postgresql_group }}"
+    append: true
+    create_home: false
+  with_items: "{{ postgresql_group_extra_users }}"
+
+## Initdb
+##
+
+- name: check postgresql data
+  become: true
+  ansible.builtin.stat:
+    path: "{{ postgresql_dir }}/data{{ postgresql_version }}"
+  register: check_postgresql_data
+
+- name: ensure postgresql data directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ postgresql_dir }}"
+    state: directory
+    owner: "{{ postgresql_user }}"
+    group: "{{ postgresql_group }}"
+    mode: "0700"
+
+- name: ensure postgresql socket directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ postgresql_unix_socket_directories[0] }}"
+    state: directory
+    owner: "{{ postgresql_user }}"
+    group: "{{ postgresql_group }}"
+    mode: "0755"
+
+- name: initialize postgresql data
+  become: true
+  become_user: postgres
+  ansible.builtin.command: |
+    /usr/local/bin/initdb
+    -D "{{ postgresql_dir }}/data{{ postgresql_version }}"
+    -U postgres
+    --encoding=utf8
+    --locale=en_US.UTF-8
+  register: init_postgresql_data
+  when: check_postgresql_data.stat.isdir is not defined
+  changed_when: init_postgresql_data is succeeded
+  failed_when: init_postgresql_data is not succeeded
+
+## Configure
+##
+
+- name: configure pg_hba.conf
+  become: true
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "{{ postgresql_dir }}/data{{ postgresql_version }}/pg_hba.conf"
+    owner: "{{ postgresql_user }}"
+    group: "{{ postgresql_group }}"
+    mode: 0600
+  notify:
+    - restart postgresql
+
+- name: configure postgresql.conf
+  become: true
+  ansible.builtin.template:
+    src: postgresql.conf.j2
+    dest: "{{ postgresql_dir }}/data{{ postgresql_version }}/postgresql.conf"
+    owner: "{{ postgresql_user }}"
+    group: "{{ postgresql_group }}"
+    mode: 0600
+  notify:
+    - restart postgresql
+
+## Supervise
+##
+
+- name: ensure postgresql service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: 0755
+  with_items:
+    - /var/service/postgresql
+    - /var/service/postgresql/log
+
+- name: install postgresql service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/postgresql/run
+    mode: "0555"
+    content: |
+      #!/usr/local/bin/execlineb -P
+      foreground { install -d -o {{ postgresql_user }} -g {{ postgresql_group }} -m 0755 {{ postgresql_unix_socket_directories[0] }} }
+      s6-setuidgid postgres
+      fdmove -c 2 1
+      /usr/local/bin/postgres
+        -D {{ postgresql_dir }}/data{{ postgresql_version }}
+        -c config_file={{ postgresql_dir }}/data{{ postgresql_version }}/postgresql.conf
+  notify:
+    - rescan postgresql s6
+    - restart postgresql
+
+- name: install postgresql log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/postgresql/log/run
+    mode: "0555"
+    content: "{{ postgresql_logger }}"
+  notify:
+    - rescan postgresql s6
+    - restart postgresql logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
+
+## Database setup
+##
+
+- name: install postgresql tools
+  become: true
+  community.general.pkgng:
+    name:
+      - 'python{{ postgresql_python_version | replace(".", "") }}'
+      - 'py{{ postgresql_python_version | replace(".", "") }}-pip'
+    state: present
+
+# We can't use pkgng package for py-psycopg2 here because the package was
+# built against postgresql-client but we need postgresql10-server.
+- name: install psycopg2
+  become: true
+  ansible.builtin.pip:
+    name: psycopg2
+    executable: "/usr/local/bin/pip-{{ postgresql_python_version }}"
+    state: present
+
+- name: start postgresql prior to database creation
+  become: true
+  ansible.builtin.shell: s6-svscanctl -an /var/service && s6-svc -wu /var/service/postgresql
+  changed_when: false
+
+- name: setup postgresql superuser
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    login_user: "{{ postgresql_user }}"
+    login_unix_socket: "{{ postgresql_unix_socket_directories[0] }}"
+    name: "{{ postgresql_user }}"
+    owner: "{{ postgresql_user }}"
+
+- name: setup postgresql users
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    login_user: "{{ postgresql_user }}"
+    login_unix_socket: "{{ postgresql_unix_socket_directories[0] }}"
+    name: "{{ item.user }}"
+    password: "{{ item.password | default('') }}"
+    encrypted: true
+  with_items: "{{ postgresql_databases }}"
+  loop_control:
+    label: "{{ item.user }}"
+
+- name: setup postgresql databases
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    login_user: postgres
+    login_unix_socket: "{{ postgresql_unix_socket_directories[0] }}"
+    name: "{{ item.1 }}"
+    owner: "{{ item.0.user }}"
+  with_subelements:
+    - "{{ postgresql_databases }}"
+    - databases
+    - skip_missing: true
+  loop_control:
+    label: "{{ item.1 }}"

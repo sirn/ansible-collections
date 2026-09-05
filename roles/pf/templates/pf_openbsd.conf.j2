@@ -1,0 +1,49 @@
+set skip on lo0
+set reassemble yes
+
+match in all scrub (no-df random-id max-mss 1440)
+{% for spec in pf_ipv4_forwarded_ports %}
+match in on {{pf_ext_iface}} inet proto {{spec.proto}} from {{spec.source if "source" in spec and spec.source else "any"}} to {{pf_ext_iface}} port {{spec.port}} rdr-to {{spec.address}} port {{spec.dest_port}}
+{% endfor %}
+{% for spec in pf_ipv6_forwarded_ports %}
+match in on {{pf_ext_iface}} inet6 proto {{spec.proto}} from {{spec.source if "source" in spec and spec.source else "any"}} to {{pf_ext_iface}} port {{spec.port}} rdr-to {{spec.address}} port {{spec.dest_port}}
+{% endfor %}
+{% for spec in pf_ipv4_nat %}
+match out on {{pf_ext_iface}} from {{spec}} to any nat-to ({{pf_ext_iface}}) source-hash
+{% endfor %}
+
+block return
+{% if pf_allow_ipv4 %}
+
+icmp_types="{ echoreq }"
+pass in on {{pf_ext_iface}} inet proto icmp all icmp-type $icmp_types keep state
+{% for iface in pf_allowed_ifaces %}
+pass in on {{iface}} inet all
+{% endfor %}
+
+pass in on {{pf_ext_iface}} inet proto tcp from any to any port {{pf_ssh_port}} keep state
+{% for spec in pf_allowed_ports %}
+pass in on {{pf_ext_iface}} inet proto {{spec.proto}} from {{spec.source if "source" in spec and spec.source else "any"}} to any port {{spec.port}} keep state
+{% endfor %}
+pass out inet all flags any keep state
+{% endif %}
+{% if pf_allow_ipv6 %}
+
+icmp6_types="{ 128, 133, 134, 135, 136, 137 }"
+pass in on {{pf_ext_iface}} inet6 proto icmp6 all icmp6-type $icmp6_types keep state
+{% for iface in pf_allowed_ifaces %}
+pass in on {{iface}} inet6 all
+{% endfor %}
+
+pass in on {{pf_ext_iface}} inet6 proto tcp from any to any port {{pf_ssh_port}} keep state
+{% for spec in pf_allowed_ports %}
+pass in on {{pf_ext_iface}} inet6 proto {{spec.proto}} from {{spec.source if "source" in spec and spec.source else "any"}} to any port {{spec.port}} keep state
+{% endfor %}
+pass out inet6 all flags any keep state
+{% endif %}
+{% if pf_anchors %}
+
+{% for anchor in pf_anchors %}
+anchor "{{anchor}}/*"
+{% endfor %}
+{% endif %}

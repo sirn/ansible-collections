@@ -1,0 +1,19 @@
+---
+pf_allow_ipv4: true
+pf_allow_ipv6: false
+pf_allowed_ifaces: []
+pf_allowed_ports: []
+pf_anchors: []
+pf_anchors_single: []
+pf_ext_iface: vio0
+pf_ipv4_forwarded_ports: []
+pf_ipv4_ifaces: []
+pf_ipv4_nat: []
+pf_ipv6_forwarded_ports: []
+pf_ipv6_ifaces: []
+pf_load: true
+pf_nat_anchors: []
+pf_nat_anchors_single: []
+pf_rdr_anchors: []
+pf_rdr_anchors_single: []
+pf_ssh_port: 22

@@ -1,0 +1,16 @@
+tos minclock 3 maxclock 6
+{% if ntpd_pools %}
+{% for pool in ntpd_pools %}
+pool {{pool}} iburst
+{% endfor %}
+{% endif %}
+{% if ntpd_servers %}
+{% for server in ntpd_servers %}
+server {{server}} iburst
+{% endfor %}
+{% endif %}
+restrict default limited kod nomodify notrap noquery nopeer
+restrict source  limited kod nomodify notrap noquery
+restrict 127.0.0.1
+restrict ::1
+leapfile "/var/db/ntpd.leap-seconds.list"

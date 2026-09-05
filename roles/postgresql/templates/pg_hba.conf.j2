@@ -1,0 +1,18 @@
+{% if postgresql_hba %}
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+{% for hba in postgresql_hba %}
+{{"%-7s"|format(hba.type)}} {{"%-15s"|format(hba.database)}} {{"%-15s"|format(hba.user)}} {{"%-23s"|format(hba.address)}} {{hba.method}}
+{% endfor %}
+
+{% endif %}
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+{% if postgresql_hba_trust_local %}
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             ::1/128                 trust
+{% else %}
+local   sameuser        all                                     peer
+local   all             all                                     md5
+host    all             all             127.0.0.1/32            md5
+host    all             all             ::1/128                 md5
+{% endif %}

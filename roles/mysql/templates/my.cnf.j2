@@ -1,0 +1,20 @@
+[mysqld]
+bind-address="{{ mysql_address }}"
+socket="{{ mysql_socket }}"
+sql_mode="STRICT_ALL_TABLES"
+datadir="{{ mysql_dir }}"
+innodb_buffer_pool_size=1G
+innodb_checksum_algorithm={{ mysql_innodb_checksum_algorithm }}
+innodb_data_home_dir="{{ mysql_dir_innodb }}"
+innodb_doublewrite={{ mysql_innodb_doublewrite }}
+innodb_flush_neighbors={{ mysql_innodb_flush_neighbors }}
+innodb_use_atomic_writes={{ mysql_innodb_use_atomic_writes }}
+innodb_log_file_size=256M
+innodb_log_group_home_dir="{{ mysql_dir_log }}"
+innodb_log_write_ahead_size={{ mysql_innodb_log_write_ahead_size }}
+innodb_use_native_aio={{ mysql_innodb_use_native_aio }}
+innodb_flush_method=O_DIRECT
+skip-innodb_doublewrite
+{% if mysql_skip_networking %}
+skip-networking
+{% endif %}
