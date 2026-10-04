@@ -1,0 +1,109 @@
+---
+- name: test victoria_metrics directory storage without ZFS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_become: false
+  tasks:
+    - name: load storage defaults
+      ansible.builtin.include_vars: ../roles/victoria_metrics/defaults/main.yml
+
+    - name: check ZFS storage is opt-in
+      ansible.builtin.assert:
+        that:
+          - victoria_metrics_dataset == ''
+
+    - name: create temporary directory parent
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../tmp"
+        state: directory
+        mode: "0700"
+
+    - name: create temporary data directory
+      ansible.builtin.tempfile:
+        path: "{{ playbook_dir }}/../tmp"
+        state: directory
+      register: monitoring_storage_tmp
+
+    - name: test directory storage
+      block:
+        - name: check absent data directory
+          ansible.builtin.include_role:
+            name: ../roles/victoria_metrics
+            tasks_from: configure_storage_freebsd_s6
+          vars:
+            victoria_metrics_data_dir: "{{ monitoring_storage_tmp.path }}/absent"
+
+        - name: create existing metrics data
+          ansible.builtin.copy:
+            dest: "{{ monitoring_storage_tmp.path }}/data"
+            content: metrics history
+            mode: "0600"
+
+        - name: check existing data directory
+          ansible.builtin.include_role:
+            name: ../roles/victoria_metrics
+            tasks_from: configure_storage_freebsd_s6
+          vars:
+            victoria_metrics_data_dir: "{{ monitoring_storage_tmp.path }}"
+
+        - name: verify existing metrics data is unchanged
+          ansible.builtin.assert:
+            that:
+              - lookup('file', monitoring_storage_tmp.path + '/data') == 'metrics history'
+
+        - name: check regular files are rejected as data directories
+          block:
+            - name: check invalid data directory
+              ansible.builtin.include_role:
+                name: ../roles/victoria_metrics
+                tasks_from: configure_storage_freebsd_s6
+              vars:
+                victoria_metrics_data_dir: "{{ monitoring_storage_tmp.path }}/data"
+          rescue:
+            - name: verify the data path check failed
+              ansible.builtin.assert:
+                that:
+                  - ansible_failed_task.name == 'Check victoria_metrics data path'
+            - name: record rejected file
+              ansible.builtin.set_fact:
+                monitoring_storage_file_rejected: true
+
+        - name: verify the regular file was rejected
+          ansible.builtin.assert:
+            that:
+              - monitoring_storage_file_rejected | default(false)
+
+        - name: create symlink data path
+          ansible.builtin.file:
+            src: "{{ monitoring_storage_tmp.path }}"
+            dest: "{{ monitoring_storage_tmp.path }}/link"
+            state: link
+
+        - name: check symlinks are rejected as data directories
+          block:
+            - name: check symlink data directory
+              ansible.builtin.include_role:
+                name: ../roles/victoria_metrics
+                tasks_from: configure_storage_freebsd_s6
+              vars:
+                victoria_metrics_data_dir: "{{ monitoring_storage_tmp.path }}/link"
+          rescue:
+            - name: verify the symlink check failed
+              ansible.builtin.assert:
+                that:
+                  - ansible_failed_task.name == 'Check victoria_metrics data path'
+            - name: record rejected symlink
+              ansible.builtin.set_fact:
+                monitoring_storage_symlink_rejected: true
+
+        - name: verify the symlink was rejected
+          ansible.builtin.assert:
+            that:
+              - monitoring_storage_symlink_rejected | default(false)
+      always:
+        - name: remove temporary data directory
+          ansible.builtin.file:
+            path: "{{ monitoring_storage_tmp.path }}"
+            state: absent

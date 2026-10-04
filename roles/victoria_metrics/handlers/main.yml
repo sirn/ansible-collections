@@ -1,0 +1,35 @@
+---
+- name: Rescan victoria_metrics s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: victoria_metrics_rescan_result
+  changed_when: victoria_metrics_rescan_result is succeeded
+  failed_when: victoria_metrics_rescan_result is not succeeded
+
+- name: Wait for victoria_metrics supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ victoria_metrics_item }}"
+  loop_control:
+    loop_var: victoria_metrics_item
+  with_items:
+    - /var/service/victoria-metrics
+    - /var/service/victoria-metrics/log
+  register: victoria_metrics_supervision
+  until: victoria_metrics_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart victoria_metrics
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/victoria-metrics
+  register: victoria_metrics_restart_result
+  changed_when: victoria_metrics_restart_result is succeeded
+  failed_when: victoria_metrics_restart_result is not succeeded
+
+- name: Restart victoria_metrics logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/victoria-metrics/log
+  register: victoria_metrics_logger_restart_result
+  changed_when: victoria_metrics_logger_restart_result is succeeded
+  failed_when: victoria_metrics_logger_restart_result is not succeeded

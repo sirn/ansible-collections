@@ -1,0 +1,19 @@
+---
+victoria_metrics_user: victoria-metrics
+
+victoria_metrics_listen_address: 127.0.0.1:8428
+
+victoria_metrics_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/victoria-metrics/
+
+victoria_metrics_data_dir: /var/db/victoria-metrics
+
+victoria_metrics_dataset: ""
+
+victoria_metrics_retention: 1y
+
+victoria_metrics_memory_allowed_bytes: 1GiB
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

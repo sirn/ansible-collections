@@ -1,0 +1,8 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ victoria_metrics_user }}
+fdmove -c 2 1
+/usr/local/bin/victoria-metrics
+  -storageDataPath={{ victoria_metrics_data_dir }}
+  -retentionPeriod={{ victoria_metrics_retention }}
+  -memory.allowedBytes={{ victoria_metrics_memory_allowed_bytes }}
+  -httpListenAddr={{ victoria_metrics_listen_address }}

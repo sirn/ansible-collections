@@ -1,0 +1,85 @@
+---
+- name: Configure victoria_metrics storage
+  ansible.builtin.import_tasks: configure_storage_freebsd_s6.yml
+
+- name: Install victoria_metrics
+  become: true
+  community.general.pkgng:
+    name: victoria-metrics
+    state: latest
+  notify:
+    - Restart victoria_metrics
+
+- name: Disable victoria_metrics rc service
+  become: true
+  community.general.sysrc:
+    name: victoria_metrics_enable
+    value: "NO"
+
+- name: Check victoria_metrics supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/victoria-metrics/supervise
+  register: victoria_metrics_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant victoria_metrics rc service
+  become: true
+  ansible.builtin.service:
+    name: victoria-metrics
+    state: stopped
+  when: not victoria_metrics_supervise.stat.exists
+
+- name: Ensure victoria_metrics data directory ownership
+  become: true
+  ansible.builtin.file:
+    path: "{{ victoria_metrics_data_dir }}"
+    state: directory
+    owner: "{{ victoria_metrics_user }}"
+    group: victoria-metrics
+    mode: "0700"
+
+- name: Ensure victoria_metrics log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/victoria-metrics
+    state: directory
+    mode: "0755"
+
+- name: Ensure victoria_metrics service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ victoria_metrics_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: victoria_metrics_item
+  with_items:
+    - /var/service/victoria-metrics
+    - /var/service/victoria-metrics/log
+
+- name: Install victoria_metrics service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/victoria-metrics/run
+    mode: "0555"
+  notify:
+    - Rescan victoria_metrics s6
+    - Wait for victoria_metrics supervision
+    - Restart victoria_metrics
+
+- name: Install victoria_metrics log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/victoria-metrics/log/run
+    mode: "0555"
+    content: "{{ victoria_metrics_logger }}"
+  notify:
+    - Rescan victoria_metrics s6
+    - Wait for victoria_metrics supervision
+    - Restart victoria_metrics logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

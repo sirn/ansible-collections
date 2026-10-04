@@ -1,0 +1,27 @@
+---
+- name: Inspect victoria_metrics data path
+  become: true
+  ansible.builtin.stat:
+    path: "{{ victoria_metrics_data_dir }}"
+  register: victoria_metrics_data_path
+
+- name: Check victoria_metrics data path
+  ansible.builtin.assert:
+    that:
+      - not victoria_metrics_data_path.stat.exists or victoria_metrics_data_path.stat.isdir
+      - not victoria_metrics_data_path.stat.islnk | default(false)
+
+- name: Inspect existing victoria_metrics data
+  become: true
+  ansible.builtin.find:
+    paths: "{{ victoria_metrics_data_dir }}"
+    file_type: any
+    hidden: true
+  register: victoria_metrics_existing_data
+  when:
+    - victoria_metrics_dataset | length > 0
+    - victoria_metrics_data_path.stat.exists
+
+- name: Configure victoria_metrics ZFS storage
+  ansible.builtin.include_tasks: configure_zfs_freebsd_s6.yml
+  when: victoria_metrics_dataset | length > 0

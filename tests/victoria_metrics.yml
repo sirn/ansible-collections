@@ -1,0 +1,34 @@
+---
+- name: test victoria_metrics configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load victoria_metrics defaults
+      ansible.builtin.include_vars: ../roles/victoria_metrics/defaults/main.yml
+
+    - name: render victoria_metrics service command
+      ansible.builtin.set_fact:
+        victoria_metrics_run: "{{ lookup('template', '../roles/victoria_metrics/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - victoria_metrics_run is search('fdmove -c 2 1')
+          - victoria_metrics_run is search('s6-setuidgid')
+          - victoria_metrics_run is not search('/usr/sbin/daemon')
+
+    - name: set listener address
+      ansible.builtin.set_fact:
+        victoria_metrics_listen_address: 10.0.0.3:8428
+
+    - name: render private listener
+      ansible.builtin.set_fact:
+        victoria_metrics_private_run: "{{ lookup('template', '../roles/victoria_metrics/templates/run.j2') }}"
+
+    - name: check private listener
+      ansible.builtin.assert:
+        that:
+          - victoria_metrics_private_run is search('-httpListenAddr=10.0.0.3:8428')
