@@ -1,0 +1,36 @@
+---
+- name: test mysqld_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load mysqld_exporter defaults
+      ansible.builtin.include_vars: ../roles/mysqld_exporter/defaults/main.yml
+
+    - name: render mysqld_exporter service command
+      ansible.builtin.set_fact:
+        mysqld_exporter_run: "{{ lookup('template', '../roles/mysqld_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - mysqld_exporter_run is search('fdmove -c 2 1')
+          - mysqld_exporter_run is search('s6-setuidgid')
+          - mysqld_exporter_run is not search('/usr/sbin/daemon')
+          - mysqld_exporter_run is search('--web.listen-address=127.0.0.1:9104')
+
+    - name: set database password
+      ansible.builtin.set_fact:
+        mysqld_exporter_password: test-only-password
+
+    - name: render client credentials
+      ansible.builtin.set_fact:
+        mysqld_exporter_client: "{{ lookup('template', '../roles/mysqld_exporter/templates/my.cnf.j2') }}"
+
+    - name: check protected client credentials
+      ansible.builtin.assert:
+        that:
+          - mysqld_exporter_client is search('socket="/var/run/mysql/mysql.sock"')
+          - mysqld_exporter_password not in mysqld_exporter_run

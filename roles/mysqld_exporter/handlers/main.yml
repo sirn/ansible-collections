@@ -1,0 +1,35 @@
+---
+- name: Rescan mysqld_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: mysqld_exporter_rescan_result
+  changed_when: mysqld_exporter_rescan_result is succeeded
+  failed_when: mysqld_exporter_rescan_result is not succeeded
+
+- name: Wait for mysqld_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ mysqld_exporter_item }}"
+  loop_control:
+    loop_var: mysqld_exporter_item
+  with_items:
+    - /var/service/mysqld_exporter
+    - /var/service/mysqld_exporter/log
+  register: mysqld_exporter_supervision
+  until: mysqld_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart mysqld_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mysqld_exporter
+  register: mysqld_exporter_restart_result
+  changed_when: mysqld_exporter_restart_result is succeeded
+  failed_when: mysqld_exporter_restart_result is not succeeded
+
+- name: Restart mysqld_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/mysqld_exporter/log
+  register: mysqld_exporter_logger_restart_result
+  changed_when: mysqld_exporter_logger_restart_result is succeeded
+  failed_when: mysqld_exporter_logger_restart_result is not succeeded

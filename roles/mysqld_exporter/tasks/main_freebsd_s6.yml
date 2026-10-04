@@ -1,0 +1,139 @@
+---
+- name: Install mysqld_exporter
+  become: true
+  community.general.pkgng:
+    name: mysqld_exporter
+    state: latest
+  notify:
+    - Restart mysqld_exporter
+
+- name: Disable mysqld_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: mysqld_exporter_enable
+    value: "NO"
+
+- name: Check mysqld_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/mysqld_exporter/supervise
+  register: mysqld_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant mysqld_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: mysqld_exporter
+    state: stopped
+  when: not mysqld_exporter_supervise.stat.exists
+
+- name: Check mysqld_exporter credentials
+  ansible.builtin.assert:
+    that:
+      - mysqld_exporter_password | length > 0
+      - "'\n' not in mysqld_exporter_password"
+      - "'\r' not in mysqld_exporter_password"
+      - "'$' not in mysqld_exporter_password"
+      - >-
+        '"""' not in mysqld_exporter_password
+  no_log: true
+
+- name: Ensure mysqld_exporter group
+  become: true
+  ansible.builtin.group:
+    name: "{{ mysqld_exporter_user }}"
+    system: true
+
+- name: Ensure mysqld_exporter user
+  become: true
+  ansible.builtin.user:
+    name: "{{ mysqld_exporter_user }}"
+    group: "{{ mysqld_exporter_user }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Configure mysqld_exporter credentials
+  become: true
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /usr/local/etc/mysqld_exporter.cnf
+    owner: "{{ mysqld_exporter_user }}"
+    group: "{{ mysqld_exporter_user }}"
+    mode: "0600"
+  no_log: true
+  diff: false
+  notify:
+    - Restart mysqld_exporter
+
+- name: Check mysqld_exporter socket access
+  become: true
+  ansible.builtin.stat:
+    path: "{{ mysqld_exporter_socket }}"
+  register: mysqld_exporter_socket_access
+
+- name: Require mysqld_exporter socket
+  ansible.builtin.assert:
+    that:
+      - mysqld_exporter_socket_access.stat.exists
+      - mysqld_exporter_socket_access.stat.issock
+    fail_msg: The MySQL socket must exist before supervision starts.
+  when: not ansible_check_mode
+
+# Check as the service user without sharing Ansible temporary files on ZFS.
+- name: Check mysqld_exporter socket permissions
+  become: true
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/s6-setuidgid
+      - "{{ mysqld_exporter_user }}"
+      - /bin/test
+      - -w
+      - "{{ mysqld_exporter_socket }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Ensure mysqld_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/mysqld_exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure mysqld_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ mysqld_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: mysqld_exporter_item
+  with_items:
+    - /var/service/mysqld_exporter
+    - /var/service/mysqld_exporter/log
+
+- name: Install mysqld_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/mysqld_exporter/run
+    mode: "0555"
+  notify:
+    - Rescan mysqld_exporter s6
+    - Wait for mysqld_exporter supervision
+    - Restart mysqld_exporter
+
+- name: Install mysqld_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/mysqld_exporter/log/run
+    mode: "0555"
+    content: "{{ mysqld_exporter_logger }}"
+  notify:
+    - Rescan mysqld_exporter s6
+    - Wait for mysqld_exporter supervision
+    - Restart mysqld_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

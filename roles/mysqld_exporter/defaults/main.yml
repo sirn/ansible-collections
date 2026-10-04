@@ -1,0 +1,17 @@
+---
+mysqld_exporter_user: mysqld_exporter
+
+mysqld_exporter_listen_address: 127.0.0.1:9104
+
+mysqld_exporter_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/mysqld_exporter/
+
+mysqld_exporter_database_user: mysqld_exporter
+
+mysqld_exporter_password: ""
+
+mysqld_exporter_socket: "{{ mysql_socket | default('/var/run/mysql/mysql.sock') }}"
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

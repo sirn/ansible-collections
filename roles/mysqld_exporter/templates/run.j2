@@ -1,0 +1,6 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ mysqld_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/mysqld_exporter
+  --config.my-cnf=/usr/local/etc/mysqld_exporter.cnf
+  --web.listen-address={{ mysqld_exporter_listen_address }}

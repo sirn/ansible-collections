@@ -1,0 +1,4 @@
+[client]
+user={{ mysqld_exporter_database_user | to_json }}
+password="""{{ mysqld_exporter_password }}"""
+socket={{ mysqld_exporter_socket | to_json }}
