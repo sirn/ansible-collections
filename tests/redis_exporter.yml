@@ -1,0 +1,39 @@
+---
+- name: test redis_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load redis_exporter defaults
+      ansible.builtin.include_vars: ../roles/redis_exporter/defaults/main.yml
+
+    - name: render redis_exporter service command
+      ansible.builtin.set_fact:
+        redis_exporter_run: "{{ lookup('template', '../roles/redis_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - redis_exporter_run is search('fdmove -c 2 1')
+          - redis_exporter_run is search('s6-setuidgid')
+          - redis_exporter_run is not search('/usr/sbin/daemon')
+          - redis_exporter_run is search('--web.listen-address=127.0.0.1:9121')
+          - redis_exporter_run is not search('--redis.password-file')
+
+    - name: set Redis password
+      ansible.builtin.set_fact:
+        redis_exporter_password: 'test-only;#"password'
+
+    - name: render password file and service command
+      ansible.builtin.set_fact:
+        redis_exporter_passwords: "{{ lookup('template', '../roles/redis_exporter/templates/passwords.json.j2') | from_json }}"
+        redis_exporter_password_run: "{{ lookup('template', '../roles/redis_exporter/templates/run.j2') }}"
+
+    - name: check protected Redis credentials
+      ansible.builtin.assert:
+        that:
+          - redis_exporter_passwords[redis_exporter_redis_url] == redis_exporter_password
+          - redis_exporter_password_run is search('--redis.password-file=/usr/local/etc/redis_exporter/passwords.json')
+          - redis_exporter_password not in redis_exporter_password_run

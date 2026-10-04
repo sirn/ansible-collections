@@ -1,0 +1,15 @@
+---
+redis_exporter_user: nobody
+
+redis_exporter_listen_address: 127.0.0.1:9121
+
+redis_exporter_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/redis_exporter/
+
+redis_exporter_redis_url: redis://127.0.0.1:6379
+
+redis_exporter_password: "{{ redis_requirepass | default('', true) }}"
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

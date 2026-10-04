@@ -1,0 +1,35 @@
+---
+- name: Rescan redis_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: redis_exporter_rescan_result
+  changed_when: redis_exporter_rescan_result is succeeded
+  failed_when: redis_exporter_rescan_result is not succeeded
+
+- name: Wait for redis_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ redis_exporter_item }}"
+  loop_control:
+    loop_var: redis_exporter_item
+  with_items:
+    - /var/service/redis_exporter
+    - /var/service/redis_exporter/log
+  register: redis_exporter_supervision
+  until: redis_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart redis_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/redis_exporter
+  register: redis_exporter_restart_result
+  changed_when: redis_exporter_restart_result is succeeded
+  failed_when: redis_exporter_restart_result is not succeeded
+
+- name: Restart redis_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/redis_exporter/log
+  register: redis_exporter_logger_restart_result
+  changed_when: redis_exporter_logger_restart_result is succeeded
+  failed_when: redis_exporter_logger_restart_result is not succeeded

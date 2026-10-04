@@ -1,0 +1,9 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ redis_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/redis_exporter
+  --redis.addr={{ redis_exporter_redis_url }}
+  --web.listen-address={{ redis_exporter_listen_address }}
+{% if redis_exporter_password %}
+  --redis.password-file=/usr/local/etc/redis_exporter/passwords.json
+{% endif %}
