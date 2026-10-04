@@ -6,6 +6,20 @@
   changed_when: rescan_nginx_s6 is succeeded
   failed_when: rescan_nginx_s6 is not succeeded
 
+- name: wait for nginx supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ nginx_item }}"
+  with_items:
+    - /var/service/nginx
+    - /var/service/nginx/log
+  loop_control:
+    loop_var: nginx_item
+  register: nginx_supervision
+  until: nginx_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
 - name: restart nginx
   become: true
   ansible.builtin.command: s6-svc -t /var/service/nginx

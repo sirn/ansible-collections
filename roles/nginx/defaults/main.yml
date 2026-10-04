@@ -42,6 +42,8 @@ nginx_http_port: 80
 
 nginx_https_port: 443
 
+nginx_ssl_protocols: TLSv1 TLSv1.1 TLSv1.2 TLSv1.3
+
 nginx_logger: |
   #!/usr/local/bin/execlineb -P
   s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/nginx/
@@ -53,6 +55,10 @@ nginx_ipv6: false
 nginx_server_names_hash_bucket_size: 64
 
 nginx_sites: []
+
+nginx_stub_status: false
+
+nginx_stub_status_address: 127.0.0.1:8181
 
 nginx_stream: false
 

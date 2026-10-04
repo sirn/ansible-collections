@@ -50,6 +50,20 @@ http {
   gzip_min_length 16;
 {% endif %}
 
+{% if nginx_stub_status %}
+
+  server {
+    listen {{ nginx_stub_status_address }};
+    server_name localhost;
+    location = /stub_status {
+      stub_status;
+      allow 127.0.0.1;
+      deny all;
+    }
+    location / { return 404; }
+  }
+{% endif %}
+
   client_body_buffer_size {{ nginx_client_body_buffer_size }};
   client_max_body_size {{ nginx_client_max_body_size }};
 {% if nginx_config %}
@@ -126,7 +140,7 @@ http {
     ssl_certificate {{ site_conf.cert }};
     ssl_certificate_key {{ site_conf.cert_key }};
 {% endif %}
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_protocols {{ nginx_ssl_protocols }};
     ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
     ssl_prefer_server_ciphers on;
 
@@ -285,7 +299,7 @@ stream {
     ssl_certificate {{ stream.cert }};
     ssl_certificate_key {{ stream.cert_key }};
 {% endif %}
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_protocols {{ nginx_ssl_protocols }};
     ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
     ssl_prefer_server_ciphers on;
 

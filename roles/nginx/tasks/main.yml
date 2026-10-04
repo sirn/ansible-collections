@@ -1,3 +1,5 @@
 ---
 - name: include OS-specific tasks
   ansible.builtin.include_tasks: "main_{{ ansible_os_family | lower }}{{ '_s6' if s6 else '' }}.yml"
+  tags:
+    - nginx_config

@@ -1,0 +1,62 @@
+---
+- name: test nginx configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load nginx defaults
+      ansible.builtin.include_vars: ../roles/nginx/defaults/main.yml
+
+    - name: render nginx with status disabled
+      ansible.builtin.set_fact:
+        nginx_test_disabled: "{{ lookup('template', '../roles/nginx/templates/nginx.conf.j2') }}"
+
+    - name: enable nginx status
+      ansible.builtin.set_fact:
+        nginx_stub_status: true
+
+    - name: render nginx with status enabled
+      ansible.builtin.set_fact:
+        nginx_test_enabled: "{{ lookup('template', '../roles/nginx/templates/nginx.conf.j2') }}"
+
+    - name: check opt-in loopback nginx status server
+      ansible.builtin.assert:
+        that:
+          - nginx_test_disabled is not search('stub_status;')
+          - nginx_test_enabled is search('server \{\n    listen 127.0.0.1:8181;')
+          - nginx_test_enabled is search('location = /stub_status')
+          - nginx_test_enabled is search('allow 127.0.0.1;\n      deny all;')
+
+    - name: set TLS reverse proxy site
+      ansible.builtin.set_fact:
+        nginx_ssl_protocols: TLSv1.2 TLSv1.3
+        nginx_ipv6: true
+        nginx_sites:
+          - secure: true
+            domains: [monitor.example.test]
+            dehydrated_cert: monitor.example.test
+            config: |
+              auth_basic "Monitoring";
+              auth_basic_user_file /usr/local/etc/nginx/monitor.htpasswd;
+            locations:
+              - path: /
+                proxy_backends: [http://127.0.0.1:3000]
+                proxy_connection_upgrade: true
+                config: |
+                  proxy_set_header Authorization "";
+
+    - name: render TLS reverse proxy site
+      ansible.builtin.set_fact:
+        nginx_test_tls: "{{ lookup('template', '../roles/nginx/templates/nginx.conf.j2') }}"
+
+    - name: check TLS reverse proxy configuration
+      ansible.builtin.assert:
+        that:
+          - nginx_test_tls is search('ssl_protocols TLSv1.2 TLSv1.3;')
+          - nginx_test_tls is not search('ssl_protocols TLSv1 TLSv1.1')
+          - nginx_test_tls is search('listen 443 ssl')
+          - nginx_test_tls is search('listen \[::\]:443 ssl')
+          - nginx_test_tls is search('auth_basic_user_file /usr/local/etc/nginx/monitor.htpasswd;')
+          - nginx_test_tls is search('proxy_pass http://127.0.0.1:3000;')
+          - nginx_test_tls is search('proxy_set_header Authorization "";')
+          - nginx_test_tls is search('proxy_set_header Upgrade \$http_upgrade;')
