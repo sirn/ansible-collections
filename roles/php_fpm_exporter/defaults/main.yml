@@ -1,0 +1,13 @@
+---
+php_fpm_exporter_user: www
+
+php_fpm_exporter_listen_address: 127.0.0.1:9253
+
+php_fpm_exporter_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/php-fpm_exporter/
+
+php_fpm_exporter_scrape_uri: unix:///var/run/php-fpm/php-fpm.sock;/status
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

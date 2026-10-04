@@ -1,0 +1,35 @@
+---
+- name: Rescan php_fpm_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: php_fpm_exporter_rescan_result
+  changed_when: php_fpm_exporter_rescan_result is succeeded
+  failed_when: php_fpm_exporter_rescan_result is not succeeded
+
+- name: Wait for php_fpm_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ php_fpm_exporter_item }}"
+  loop_control:
+    loop_var: php_fpm_exporter_item
+  with_items:
+    - /var/service/php-fpm_exporter
+    - /var/service/php-fpm_exporter/log
+  register: php_fpm_exporter_supervision
+  until: php_fpm_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart php_fpm_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/php-fpm_exporter
+  register: php_fpm_exporter_restart_result
+  changed_when: php_fpm_exporter_restart_result is succeeded
+  failed_when: php_fpm_exporter_restart_result is not succeeded
+
+- name: Restart php_fpm_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/php-fpm_exporter/log
+  register: php_fpm_exporter_logger_restart_result
+  changed_when: php_fpm_exporter_logger_restart_result is succeeded
+  failed_when: php_fpm_exporter_logger_restart_result is not succeeded

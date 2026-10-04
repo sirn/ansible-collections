@@ -1,0 +1,23 @@
+---
+- name: test php_fpm_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load php_fpm_exporter defaults
+      ansible.builtin.include_vars: ../roles/php_fpm_exporter/defaults/main.yml
+
+    - name: render php_fpm_exporter service command
+      ansible.builtin.set_fact:
+        php_fpm_exporter_run: "{{ lookup('template', '../roles/php_fpm_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - php_fpm_exporter_run is search('fdmove -c 2 1')
+          - php_fpm_exporter_run is search('s6-setuidgid')
+          - php_fpm_exporter_run is not search('/usr/sbin/daemon')
+          - php_fpm_exporter_run is search('server')
+          - php_fpm_exporter_run is search('"--phpfpm.scrape-uri=unix:///var/run/php-fpm/php-fpm.sock;/status"')

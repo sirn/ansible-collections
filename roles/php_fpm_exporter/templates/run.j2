@@ -1,0 +1,7 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ php_fpm_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/php-fpm_exporter
+  server
+  "--phpfpm.scrape-uri={{ php_fpm_exporter_scrape_uri }}"
+  --web.listen-address={{ php_fpm_exporter_listen_address }}

@@ -1,0 +1,73 @@
+---
+- name: Install php_fpm_exporter
+  become: true
+  community.general.pkgng:
+    name: php-fpm_exporter
+    state: latest
+  notify:
+    - Restart php_fpm_exporter
+
+- name: Disable php_fpm_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: php_fpm_exporter_enable
+    value: "NO"
+
+- name: Check php_fpm_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/php-fpm_exporter/supervise
+  register: php_fpm_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant php_fpm_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: php_fpm_exporter
+    state: stopped
+  when: not php_fpm_exporter_supervise.stat.exists
+
+- name: Ensure php_fpm_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/php-fpm_exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure php_fpm_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ php_fpm_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: php_fpm_exporter_item
+  with_items:
+    - /var/service/php-fpm_exporter
+    - /var/service/php-fpm_exporter/log
+
+- name: Install php_fpm_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/php-fpm_exporter/run
+    mode: "0555"
+  notify:
+    - Rescan php_fpm_exporter s6
+    - Wait for php_fpm_exporter supervision
+    - Restart php_fpm_exporter
+
+- name: Install php_fpm_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/php-fpm_exporter/log/run
+    mode: "0555"
+    content: "{{ php_fpm_exporter_logger }}"
+  notify:
+    - Rescan php_fpm_exporter s6
+    - Wait for php_fpm_exporter supervision
+    - Restart php_fpm_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
