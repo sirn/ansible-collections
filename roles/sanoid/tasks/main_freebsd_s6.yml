@@ -78,7 +78,7 @@
   loop: '{{ sanoid_datasets | product(sanoid_hooks) | list }}'
   loop_control:
     label: "{{ hook_path }}"
-  when: '"options" in item.0 and k in item.0.options and item.0.options[k]'
+  when: '"options" in item.0 and item.0.options[k] | default("") | length > 0'
   vars:
     k: "{{ item.1 }}_script"
     hook_filename: '{{ item.0.name | replace("/", "__") }}_{{ item.1 }}.sh'
@@ -98,7 +98,7 @@
   loop: '{{ sanoid_templates | product(sanoid_hooks) | list }}'
   loop_control:
     label: "{{ hook_path }}"
-  when: '"options" in item.0 and k in item.0.options and item.0.options[k]'
+  when: '"options" in item.0 and item.0.options[k] | default("") | length > 0'
   vars:
     k: "{{ item.1 }}_script"
     hook_filename: 'template_{{ item.0.name }}_{{ item.1 }}.sh'
