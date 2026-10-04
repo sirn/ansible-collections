@@ -1,0 +1,73 @@
+---
+- name: Install nginx_exporter
+  become: true
+  community.general.pkgng:
+    name: nginx-prometheus-exporter
+    state: latest
+  notify:
+    - Restart nginx_exporter
+
+- name: Disable nginx_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: nginx_prometheus_exporter_enable
+    value: "NO"
+
+- name: Check nginx_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/nginx-exporter/supervise
+  register: nginx_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant nginx_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: nginx-prometheus-exporter
+    state: stopped
+  when: not nginx_exporter_supervise.stat.exists
+
+- name: Ensure nginx_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/nginx-exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure nginx_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ nginx_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: nginx_exporter_item
+  with_items:
+    - /var/service/nginx-exporter
+    - /var/service/nginx-exporter/log
+
+- name: Install nginx_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/nginx-exporter/run
+    mode: "0555"
+  notify:
+    - Rescan nginx_exporter s6
+    - Wait for nginx_exporter supervision
+    - Restart nginx_exporter
+
+- name: Install nginx_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/nginx-exporter/log/run
+    mode: "0555"
+    content: "{{ nginx_exporter_logger }}"
+  notify:
+    - Rescan nginx_exporter s6
+    - Wait for nginx_exporter supervision
+    - Restart nginx_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

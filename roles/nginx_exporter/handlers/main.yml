@@ -1,0 +1,35 @@
+---
+- name: Rescan nginx_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: nginx_exporter_rescan_result
+  changed_when: nginx_exporter_rescan_result is succeeded
+  failed_when: nginx_exporter_rescan_result is not succeeded
+
+- name: Wait for nginx_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ nginx_exporter_item }}"
+  loop_control:
+    loop_var: nginx_exporter_item
+  with_items:
+    - /var/service/nginx-exporter
+    - /var/service/nginx-exporter/log
+  register: nginx_exporter_supervision
+  until: nginx_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart nginx_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/nginx-exporter
+  register: nginx_exporter_restart_result
+  changed_when: nginx_exporter_restart_result is succeeded
+  failed_when: nginx_exporter_restart_result is not succeeded
+
+- name: Restart nginx_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/nginx-exporter/log
+  register: nginx_exporter_logger_restart_result
+  changed_when: nginx_exporter_logger_restart_result is succeeded
+  failed_when: nginx_exporter_logger_restart_result is not succeeded

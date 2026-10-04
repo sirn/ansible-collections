@@ -1,0 +1,6 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ nginx_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/nginx-prometheus-exporter
+  --nginx.scrape-uri={{ nginx_exporter_scrape_uri }}
+  --web.listen-address={{ nginx_exporter_listen_address }}
