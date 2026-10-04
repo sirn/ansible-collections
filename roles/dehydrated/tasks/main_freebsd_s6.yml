@@ -64,6 +64,8 @@
 ##
 
 - name: install dehydrated wrapper script
+  no_log: true
+  diff: false
   become: true
   ansible.builtin.template:
     src: wrapper.sh.j2
@@ -133,6 +135,8 @@
     letsencrypt_account_create.rc < 255
 
 - name: setup initial letsencrypt certs
+  no_log: true
+  diff: false
   become: true
   ansible.builtin.command: "sh {{ dehydrated_prefix }}/wrapper.sh"
   register: letsencrypt_initial_cert
@@ -140,6 +144,13 @@
 
 ## Supervise
 ##
+
+- name: ensure dehydrated log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/dehydrated
+    state: directory
+    mode: "0755"
 
 - name: ensure dehydrated service directories
   become: true
