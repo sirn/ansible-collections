@@ -1,0 +1,90 @@
+---
+- name: Install blackbox_exporter
+  become: true
+  community.general.pkgng:
+    name: blackbox_exporter
+    state: latest
+  notify:
+    - Restart blackbox_exporter
+
+- name: Disable blackbox_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: blackbox_exporter_enable
+    value: "NO"
+
+- name: Check blackbox_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/blackbox_exporter/supervise
+  register: blackbox_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant blackbox_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: blackbox_exporter
+    state: stopped
+  when: not blackbox_exporter_supervise.stat.exists
+
+- name: Ensure blackbox_exporter configuration directory
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/etc/blackbox_exporter
+    state: directory
+    mode: "0755"
+
+- name: Configure blackbox_exporter
+  become: true
+  ansible.builtin.template:
+    src: blackbox.yml.j2
+    dest: /usr/local/etc/blackbox_exporter/blackbox.yml
+    mode: "0644"
+    validate: /usr/local/bin/blackbox_exporter --config.check --config.file=%s
+  notify:
+    - Restart blackbox_exporter
+
+- name: Ensure blackbox_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/blackbox_exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure blackbox_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ blackbox_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: blackbox_exporter_item
+  with_items:
+    - /var/service/blackbox_exporter
+    - /var/service/blackbox_exporter/log
+
+- name: Install blackbox_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/blackbox_exporter/run
+    mode: "0555"
+  notify:
+    - Rescan blackbox_exporter s6
+    - Wait for blackbox_exporter supervision
+    - Restart blackbox_exporter
+
+- name: Install blackbox_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/blackbox_exporter/log/run
+    mode: "0555"
+    content: "{{ blackbox_exporter_logger }}"
+  notify:
+    - Rescan blackbox_exporter s6
+    - Wait for blackbox_exporter supervision
+    - Restart blackbox_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

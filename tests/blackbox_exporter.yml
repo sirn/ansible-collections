@@ -1,0 +1,34 @@
+---
+- name: test blackbox_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load blackbox_exporter defaults
+      ansible.builtin.include_vars: ../roles/blackbox_exporter/defaults/main.yml
+
+    - name: render blackbox_exporter service command
+      ansible.builtin.set_fact:
+        blackbox_exporter_run: "{{ lookup('template', '../roles/blackbox_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - blackbox_exporter_run is search('fdmove -c 2 1')
+          - blackbox_exporter_run is search('s6-setuidgid')
+          - blackbox_exporter_run is not search('/usr/sbin/daemon')
+          - blackbox_exporter_run is search('--web.listen-address=127.0.0.1:9115')
+
+    - name: render probe configuration
+      ansible.builtin.set_fact:
+        blackbox_exporter_config: "{{ lookup('template', '../roles/blackbox_exporter/templates/blackbox.yml.j2') | from_yaml }}"
+
+    - name: check bounded HTTP probes and TLS verification
+      ansible.builtin.assert:
+        that:
+          - blackbox_exporter_config.modules.http_2xx.prober == 'http'
+          - blackbox_exporter_config.modules.http_2xx.timeout == '10s'
+          - blackbox_exporter_config.modules.http_2xx.http.method == 'GET'
+          - not blackbox_exporter_config.modules.http_2xx.http.tls_config.insecure_skip_verify
