@@ -35,8 +35,12 @@
     src: "{{ haproxy_template }}"
     dest: "{{ haproxy_prefix }}/config/haproxy.conf"
     mode: "0644"
+    backup: true
+    validate: "haproxy -c -f %s"
   notify:
     - restart haproxy
+  tags:
+    - haproxy_config
 
 ## Supervise
 ##
@@ -77,3 +81,5 @@
 - name: flush handler
   become: true
   ansible.builtin.meta: flush_handlers
+  tags:
+    - haproxy_config
