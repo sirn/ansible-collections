@@ -1,0 +1,110 @@
+---
+- name: Install vmagent
+  become: true
+  community.general.pkgng:
+    name: vmutils
+    state: latest
+  notify:
+    - Restart vmagent
+
+- name: Disable vmagent rc service
+  become: true
+  community.general.sysrc:
+    name: vmagent_enable
+    value: "NO"
+
+- name: Check vmagent supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/vmagent/supervise
+  register: vmagent_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant vmagent rc service
+  become: true
+  ansible.builtin.service:
+    name: vmagent
+    state: stopped
+  when: not vmagent_supervise.stat.exists
+
+- name: Check vmagent remote write settings
+  ansible.builtin.assert:
+    that:
+      - vmagent_remote_write_url | length > 0
+      - vmagent_max_disk_usage_per_url | length > 0
+      - vmagent_max_disk_usage_per_url is match('^[1-9][0-9]*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$')
+
+- name: Ensure vmagent queue directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ vmagent_data_dir }}"
+    state: directory
+    owner: "{{ vmagent_user }}"
+    group: victoria-metrics
+    mode: "0700"
+
+- name: Ensure vmagent configuration directory
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/etc/vmagent
+    state: directory
+    mode: "0755"
+
+- name: Configure vmagent
+  become: true
+  ansible.builtin.template:
+    src: scrape.yml.j2
+    dest: /usr/local/etc/vmagent/scrape.yml
+    owner: "{{ vmagent_user }}"
+    group: victoria-metrics
+    mode: "0600"
+    validate: /usr/local/bin/vmagent -promscrape.config=%s -promscrape.config.dryRun
+  no_log: true
+  diff: false
+  notify:
+    - Restart vmagent
+
+- name: Ensure vmagent log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/vmagent
+    state: directory
+    mode: "0755"
+
+- name: Ensure vmagent service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ vmagent_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: vmagent_item
+  with_items:
+    - /var/service/vmagent
+    - /var/service/vmagent/log
+
+- name: Install vmagent service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/vmagent/run
+    mode: "0555"
+  notify:
+    - Rescan vmagent s6
+    - Wait for vmagent supervision
+    - Restart vmagent
+
+- name: Install vmagent log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/vmagent/log/run
+    mode: "0555"
+    content: "{{ vmagent_logger }}"
+  notify:
+    - Rescan vmagent s6
+    - Wait for vmagent supervision
+    - Restart vmagent logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

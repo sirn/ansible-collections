@@ -1,0 +1,10 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ vmagent_user }}
+fdmove -c 2 1
+/usr/local/bin/vmagent
+  -promscrape.config=/usr/local/etc/vmagent/scrape.yml
+  -remoteWrite.url={{ vmagent_remote_write_url }}
+  -remoteWrite.tmpDataPath={{ vmagent_data_dir }}
+  -remoteWrite.maxDiskUsagePerURL={{ vmagent_max_disk_usage_per_url }}
+  -memory.allowedBytes={{ vmagent_memory_allowed_bytes }}
+  -httpListenAddr={{ vmagent_listen_address }}

@@ -1,0 +1,35 @@
+---
+- name: Rescan vmagent s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: vmagent_rescan_result
+  changed_when: vmagent_rescan_result is succeeded
+  failed_when: vmagent_rescan_result is not succeeded
+
+- name: Wait for vmagent supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ vmagent_item }}"
+  loop_control:
+    loop_var: vmagent_item
+  with_items:
+    - /var/service/vmagent
+    - /var/service/vmagent/log
+  register: vmagent_supervision
+  until: vmagent_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart vmagent
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/vmagent
+  register: vmagent_restart_result
+  changed_when: vmagent_restart_result is succeeded
+  failed_when: vmagent_restart_result is not succeeded
+
+- name: Restart vmagent logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/vmagent/log
+  register: vmagent_logger_restart_result
+  changed_when: vmagent_logger_restart_result is succeeded
+  failed_when: vmagent_logger_restart_result is not succeeded

@@ -1,0 +1,45 @@
+---
+- name: test vmagent configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load vmagent defaults
+      ansible.builtin.include_vars: ../roles/vmagent/defaults/main.yml
+
+    - name: render vmagent service command
+      ansible.builtin.set_fact:
+        vmagent_run: "{{ lookup('template', '../roles/vmagent/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - vmagent_run is search('fdmove -c 2 1')
+          - vmagent_run is search('s6-setuidgid')
+          - vmagent_run is not search('/usr/sbin/daemon')
+          - vmagent_run is search('-httpListenAddr=127.0.0.1:8429')
+          - vmagent_run is search('s6-setuidgid victoria-metrics')
+          - vmagent_run is search('-remoteWrite.maxDiskUsagePerURL=1GB')
+          - vmagent_run is search('-remoteWrite.tmpDataPath=/var/db/vmagent')
+
+    - name: set scrape configuration inputs
+      ansible.builtin.set_fact:
+        vmagent_remote_write_url: http://10.0.0.3:8428/api/v1/write
+        vmagent_scrape_configs:
+          - job_name: node
+            static_configs:
+              - targets: ['127.0.0.1:9100']
+
+    - name: render scrape configuration
+      ansible.builtin.set_fact:
+        vmagent_scrape: "{{ lookup('template', '../roles/vmagent/templates/scrape.yml.j2') | from_yaml }}"
+
+    - name: check complete vmagent scrape document
+      ansible.builtin.assert:
+        that:
+          - vmagent_scrape.global.scrape_interval == '30s'
+          - vmagent_scrape.global.external_labels.host == 'testhost'
+          - vmagent_scrape.scrape_configs[0].job_name == 'node'
+          - vmagent_scrape.scrape_configs[0].static_configs[0].targets == ['127.0.0.1:9100']

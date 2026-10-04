@@ -1,0 +1,26 @@
+---
+vmagent_user: victoria-metrics
+
+vmagent_listen_address: 127.0.0.1:8429
+
+vmagent_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/vmagent/
+
+vmagent_data_dir: /var/db/vmagent
+
+vmagent_remote_write_url: ""
+
+vmagent_max_disk_usage_per_url: 1GB
+
+vmagent_memory_allowed_bytes: 128MiB
+
+vmagent_global:
+  scrape_interval: 30s
+  external_labels:
+    host: "{{ ansible_hostname }}"
+
+vmagent_scrape_configs: []
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false
