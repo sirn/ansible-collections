@@ -1,0 +1,35 @@
+---
+- name: Rescan varnish_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: varnish_exporter_rescan_result
+  changed_when: varnish_exporter_rescan_result is succeeded
+  failed_when: varnish_exporter_rescan_result is not succeeded
+
+- name: Wait for varnish_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ varnish_exporter_item }}"
+  loop_control:
+    loop_var: varnish_exporter_item
+  with_items:
+    - /var/service/varnish_exporter
+    - /var/service/varnish_exporter/log
+  register: varnish_exporter_supervision
+  until: varnish_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart varnish_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnish_exporter
+  register: varnish_exporter_restart_result
+  changed_when: varnish_exporter_restart_result is succeeded
+  failed_when: varnish_exporter_restart_result is not succeeded
+
+- name: Restart varnish_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/varnish_exporter/log
+  register: varnish_exporter_logger_restart_result
+  changed_when: varnish_exporter_logger_restart_result is succeeded
+  failed_when: varnish_exporter_logger_restart_result is not succeeded

@@ -1,0 +1,7 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ varnish_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/varnish_exporter
+  -varnishstat-path=/usr/local/bin/varnishstat
+  -n "{{ varnish_exporter_instance }}"
+  -web.listen-address={{ varnish_exporter_listen_address }}

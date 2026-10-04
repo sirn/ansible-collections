@@ -1,0 +1,24 @@
+---
+- name: test varnish_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+    varnish_prefix: /usr/local/varnish
+  tasks:
+    - name: load varnish_exporter defaults
+      ansible.builtin.include_vars: ../roles/varnish_exporter/defaults/main.yml
+
+    - name: render varnish_exporter service command
+      ansible.builtin.set_fact:
+        varnish_exporter_run: "{{ lookup('template', '../roles/varnish_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - varnish_exporter_run is search('fdmove -c 2 1')
+          - varnish_exporter_run is search('s6-setuidgid')
+          - varnish_exporter_run is not search('/usr/sbin/daemon')
+          - varnish_exporter_run is search('-web.listen-address=127.0.0.1:9131')
+          - varnish_exporter_run is search('-n "/usr/local/varnish/data/testhost"')

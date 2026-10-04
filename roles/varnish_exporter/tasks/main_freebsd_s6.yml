@@ -1,0 +1,73 @@
+---
+- name: Install varnish_exporter
+  become: true
+  community.general.pkgng:
+    name: varnish_exporter
+    state: latest
+  notify:
+    - Restart varnish_exporter
+
+- name: Disable varnish_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: varnish_exporter_enable
+    value: "NO"
+
+- name: Check varnish_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/varnish_exporter/supervise
+  register: varnish_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant varnish_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: varnish_exporter
+    state: stopped
+  when: not varnish_exporter_supervise.stat.exists
+
+- name: Ensure varnish_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/varnish_exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure varnish_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ varnish_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: varnish_exporter_item
+  with_items:
+    - /var/service/varnish_exporter
+    - /var/service/varnish_exporter/log
+
+- name: Install varnish_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/varnish_exporter/run
+    mode: "0555"
+  notify:
+    - Rescan varnish_exporter s6
+    - Wait for varnish_exporter supervision
+    - Restart varnish_exporter
+
+- name: Install varnish_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/varnish_exporter/log/run
+    mode: "0555"
+    content: "{{ varnish_exporter_logger }}"
+  notify:
+    - Rescan varnish_exporter s6
+    - Wait for varnish_exporter supervision
+    - Restart varnish_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
