@@ -15,8 +15,8 @@ jobs:
           python-version: "3.11"
       - name: Install linting tools
         run: |
-          pip install "ansible-core>2.14,<2.17"
-          pip install "ansible-lint==24.*" "yamllint"
+          pip install "ansible-core>2.14,<2.20"
+          pip install "ansible-lint==26.*" "yamllint"
       - name: Yamllint
         run: yamllint galaxy.yml meta/ roles/ .yamllint.yml
       - name: Ansible lint
