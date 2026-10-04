@@ -1,0 +1,35 @@
+---
+- name: Rescan grafana s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: grafana_rescan_result
+  changed_when: grafana_rescan_result is succeeded
+  failed_when: grafana_rescan_result is not succeeded
+
+- name: Wait for grafana supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ grafana_item }}"
+  loop_control:
+    loop_var: grafana_item
+  with_items:
+    - /var/service/grafana
+    - /var/service/grafana/log
+  register: grafana_supervision
+  until: grafana_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart grafana
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/grafana
+  register: grafana_restart_result
+  changed_when: grafana_restart_result is succeeded
+  failed_when: grafana_restart_result is not succeeded
+
+- name: Restart grafana logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/grafana/log
+  register: grafana_logger_restart_result
+  changed_when: grafana_logger_restart_result is succeeded
+  failed_when: grafana_logger_restart_result is not succeeded

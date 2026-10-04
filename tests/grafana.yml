@@ -1,0 +1,48 @@
+---
+- name: test grafana configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load grafana defaults
+      ansible.builtin.include_vars: ../roles/grafana/defaults/main.yml
+
+    - name: render grafana service command
+      ansible.builtin.set_fact:
+        grafana_run: "{{ lookup('template', '../roles/grafana/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - grafana_run is search('fdmove -c 2 1')
+          - grafana_run is search('s6-setuidgid')
+          - grafana_run is not search('/usr/sbin/daemon')
+
+    - name: set Grafana configuration inputs
+      ansible.builtin.set_fact:
+        grafana_domain: monitor.example.test
+        grafana_root_url: https://monitor.example.test/
+        grafana_datasource_url: http://10.0.0.3:8428
+        grafana_admin_password: test-only-password
+
+    - name: render Grafana configuration
+      ansible.builtin.set_fact:
+        grafana_datasource: "{{ lookup('template', '../roles/grafana/templates/datasource.yml.j2') | from_yaml }}"
+        grafana_dashboard_provider: "{{ lookup('template', '../roles/grafana/templates/dashboards.yml.j2') | from_yaml }}"
+        grafana_config: "{{ lookup('template', '../roles/grafana/templates/grafana.ini.j2') }}"
+
+    - name: check grafana provisioning and authentication
+      ansible.builtin.assert:
+        that:
+          - grafana_datasource.apiVersion == 1
+          - grafana_datasource.datasources[0].uid == 'victoriametrics'
+          - grafana_datasource.datasources[0].access == 'proxy'
+          - grafana_datasource.datasources[0].url == 'http://10.0.0.3:8428'
+          - grafana_dashboard_provider.providers[0].options.path == '/usr/local/etc/grafana/dashboards'
+          - grafana_config is search('http_addr = 127.0.0.1')
+          - grafana_config is search('root_url = https://monitor.example.test/')
+          - grafana_config is search('allow_sign_up = false')
+          - grafana_config is search('\[auth.anonymous\]\nenabled = false')
+          - grafana_config is search('\[auth.proxy\]\nenabled = false')

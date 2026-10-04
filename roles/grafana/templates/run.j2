@@ -1,0 +1,7 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ grafana_user }}
+fdmove -c 2 1
+/usr/local/bin/grafana
+  server
+  -config=/usr/local/etc/grafana/grafana.ini
+  -homepath=/usr/local/share/grafana

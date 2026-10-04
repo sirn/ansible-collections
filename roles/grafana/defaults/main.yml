@@ -1,0 +1,28 @@
+---
+grafana_user: grafana
+
+grafana_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/grafana/
+
+grafana_http_address: 127.0.0.1
+
+grafana_http_port: 3000
+
+grafana_domain: ""
+
+grafana_root_url: ""
+
+grafana_admin_user: admin
+
+grafana_admin_password: ""
+
+grafana_data_dir: /var/db/grafana
+
+grafana_datasource_url: ""
+
+# Each item supplies src (a controller file) and filename (a JSON basename).
+grafana_dashboards: []
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

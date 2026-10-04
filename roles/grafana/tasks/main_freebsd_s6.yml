@@ -1,0 +1,197 @@
+---
+- name: Install grafana
+  become: true
+  community.general.pkgng:
+    name: grafana
+    state: latest
+  notify:
+    - Restart grafana
+
+- name: Disable grafana rc service
+  become: true
+  community.general.sysrc:
+    name: grafana_enable
+    value: "NO"
+
+- name: Check grafana supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/grafana/supervise
+  register: grafana_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant grafana rc service
+  become: true
+  ansible.builtin.service:
+    name: grafana
+    state: stopped
+  when: not grafana_supervise.stat.exists
+
+- name: Check grafana settings
+  ansible.builtin.assert:
+    that:
+      - grafana_domain | length > 0
+      - grafana_root_url is match('https://')
+      - grafana_datasource_url | length > 0
+      - grafana_admin_password | length > 0
+      - "'\n' not in grafana_admin_password"
+      - "'\r' not in grafana_admin_password"
+      - >-
+        '"""' not in grafana_admin_password
+  no_log: true
+
+- name: Ensure grafana writable directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_item }}"
+    state: directory
+    owner: "{{ grafana_user }}"
+    group: grafana
+    mode: "0750"
+  loop_control:
+    loop_var: grafana_item
+  with_items:
+    - "{{ grafana_data_dir }}"
+    - "{{ grafana_data_dir }}/plugins"
+
+- name: Ensure grafana configuration directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_item }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0750"
+  loop_control:
+    loop_var: grafana_item
+  with_items:
+    - /usr/local/etc/grafana
+    - /usr/local/etc/grafana/provisioning
+    - /usr/local/etc/grafana/provisioning/datasources
+    - /usr/local/etc/grafana/provisioning/dashboards
+    - /usr/local/etc/grafana/dashboards
+
+- name: Configure grafana
+  become: true
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: /usr/local/etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify:
+    - Restart grafana
+
+- name: Provision grafana datasource
+  become: true
+  ansible.builtin.template:
+    src: datasource.yml.j2
+    dest: /usr/local/etc/grafana/provisioning/datasources/victoriametrics.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify:
+    - Restart grafana
+
+- name: Provision grafana dashboard provider
+  become: true
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: /usr/local/etc/grafana/provisioning/dashboards/default.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify:
+    - Restart grafana
+
+- name: Check grafana dashboard filenames
+  ansible.builtin.assert:
+    that:
+      - grafana_item.filename is match('^[a-zA-Z0-9_-]+[.]json$')
+  with_items: "{{ grafana_dashboards }}"
+  loop_control:
+    loop_var: grafana_item
+    label: "{{ grafana_item.filename }}"
+
+- name: Find installed grafana dashboards
+  become: true
+  ansible.builtin.find:
+    paths: /usr/local/etc/grafana/dashboards
+    patterns: '*.json'
+  register: grafana_installed_dashboards
+
+- name: Remove unused grafana dashboards
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_item.path }}"
+    state: absent
+  with_items: "{{ grafana_installed_dashboards.files }}"
+  loop_control:
+    loop_var: grafana_item
+    label: "{{ grafana_item.path }}"
+  when: grafana_item.path | basename not in (grafana_dashboards | map(attribute='filename') | list)
+  notify:
+    - Restart grafana
+
+- name: Install grafana dashboards
+  become: true
+  ansible.builtin.copy:
+    src: "{{ grafana_item.src }}"
+    dest: "/usr/local/etc/grafana/dashboards/{{ grafana_item.filename }}"
+    validate: "{{ ansible_python_interpreter | default('/usr/local/bin/python3') }} -m json.tool %s"
+    owner: root
+    group: grafana
+    mode: "0640"
+  with_items: "{{ grafana_dashboards }}"
+  loop_control:
+    loop_var: grafana_item
+    label: "{{ grafana_item.filename }}"
+  notify:
+    - Restart grafana
+
+- name: Ensure grafana log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/grafana
+    state: directory
+    mode: "0755"
+
+- name: Ensure grafana service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: grafana_item
+  with_items:
+    - /var/service/grafana
+    - /var/service/grafana/log
+
+- name: Install grafana service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/grafana/run
+    mode: "0555"
+  notify:
+    - Rescan grafana s6
+    - Wait for grafana supervision
+    - Restart grafana
+
+- name: Install grafana log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/grafana/log/run
+    mode: "0555"
+    content: "{{ grafana_logger }}"
+  notify:
+    - Rescan grafana s6
+    - Wait for grafana supervision
+    - Restart grafana logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
