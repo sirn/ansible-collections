@@ -135,6 +135,8 @@
       - python{{ mysql_python_version | replace(".", "") }}
       - py{{ mysql_python_version | replace(".", "") }}-pymysql
     state: latest
+  tags:
+    - mysql_tools
 
 - name: start mysql prior to database creation
   become: true
@@ -143,6 +145,8 @@
   changed_when: false
 
 - name: setup mysql superuser
+  no_log: true
+  diff: false
   become: true
   ansible.mysql.mysql_user:
     name: root
@@ -153,6 +157,8 @@
   failed_when: false
 
 - name: remove non-local mysql root user
+  no_log: true
+  diff: false
   ansible.mysql.mysql_user:
     name: root
     host: "{{ item }}"
@@ -166,6 +172,8 @@
     - ::1
 
 - name: remove anonymous mysql users
+  no_log: true
+  diff: false
   ansible.mysql.mysql_user:
     name: ""
     host: "{{ item }}"
@@ -180,6 +188,11 @@
     - ::1
 
 - name: setup mysql users
+  become: true
+  tags:
+    - mysql_users
+  no_log: true
+  diff: false
   ansible.mysql.mysql_user:
     name: "{{ item.user }}"
     host: "{{ item.host }}"
