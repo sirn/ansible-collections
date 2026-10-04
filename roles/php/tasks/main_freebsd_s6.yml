@@ -19,7 +19,8 @@
       - "{{ php_fpm_version }}-intl"
       - "{{ php_fpm_version }}-mbstring"
       - "{{ php_fpm_version }}-mysqli"
-      - "{{ php_fpm_version }}-opcache"
+      # opcache is part of php85 and later; only 84 and older use a separate package
+      - "{{ (php_fpm_version + '-opcache') if (php_fpm_version | regex_replace('^php', '') | int) < 85 else omit }}"
       - "{{ php_fpm_version }}-pdo"
       - "{{ php_fpm_version }}-pdo_mysql"
       - "{{ php_fpm_version }}-pecl-memcache"
