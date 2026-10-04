@@ -23,7 +23,7 @@ ansible-galaxy collection install sirn-collections-1.0.0.tar.gz
 
 ## Usage
 
-Roles are read through the collection namespace:
+Use the collection namespace to select roles:
 
 ```yaml
 - hosts: freebsd
@@ -41,6 +41,23 @@ Service roles supervise their process with s6 when the `s6` flag is set:
       vars:
         s6: true
 ```
+
+## Task selection
+
+Use these tags through the normal role entry point on configured FreeBSD
+hosts with `s6: true`:
+
+| Tag | Selected tasks |
+|-----|----------------|
+| `nginx_config` | Validate and replace nginx configuration |
+| `php_config` | Validate and replace the PHP-FPM pool configuration |
+| `haproxy_config` | Validate and replace HAProxy configuration |
+| `mysql_tools` | Install Python database dependencies |
+| `mysql_users` | Manage users declared in `mysql_databases` |
+
+Configuration changes notify the role's service handlers. These tags do not
+install service packages or change supervision. Database dependencies must
+be installed before the `mysql_users` tasks can run.
 
 ## Role structure
 
@@ -77,13 +94,23 @@ Only implemented entry points are shipped, for example `main_freebsd.yml`,
 - `hitch` — TLS termination proxy
 - `mrtg` — network traffic monitoring
 - `mysql` — MariaDB database server
-- `nginx` — web server
+- [`nginx`](roles/nginx/README.md) — web server
 - `openssh` — OpenSSH server via pkg
 - `php` — PHP-FPM runtime
 - `postgresql` — PostgreSQL database server
 - `redis` — Redis key-value store
 - `sanoid` — ZFS snapshot management
 - `varnish` — Varnish cache
+- [`victoria_metrics`](roles/victoria_metrics/README.md) — single-node metrics storage
+- [`vmagent`](roles/vmagent/README.md) — metrics scraping and queued remote write
+- [`grafana`](roles/grafana/README.md) — dashboards and datasource provisioning
+- [`blackbox_exporter`](roles/blackbox_exporter/README.md) — HTTP endpoint probes
+- [`node_exporter`](roles/node_exporter/README.md) — FreeBSD host metrics
+- [`mysqld_exporter`](roles/mysqld_exporter/README.md) — MySQL and MariaDB metrics
+- [`redis_exporter`](roles/redis_exporter/README.md) — Redis metrics
+- [`php_fpm_exporter`](roles/php_fpm_exporter/README.md) — PHP-FPM pool metrics
+- [`nginx_exporter`](roles/nginx_exporter/README.md) — nginx stub-status metrics
+- [`varnish_exporter`](roles/varnish_exporter/README.md) — Varnish metrics
 
 ## Development
 
@@ -91,6 +118,9 @@ Use the provided Nix flake to get `ansible`, `ansible-lint`, and `yamllint`:
 
 ```bash
 nix develop
-yamllint roles/
+yamllint roles/ tests/
 ansible-lint
+for test in tests/*.yml; do
+  ansible-playbook -i localhost, "$test" || break
+done
 ```
