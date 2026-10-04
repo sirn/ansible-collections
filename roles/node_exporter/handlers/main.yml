@@ -1,0 +1,35 @@
+---
+- name: Rescan node_exporter s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: node_exporter_rescan_result
+  changed_when: node_exporter_rescan_result is succeeded
+  failed_when: node_exporter_rescan_result is not succeeded
+
+- name: Wait for node_exporter supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ node_exporter_item }}"
+  loop_control:
+    loop_var: node_exporter_item
+  with_items:
+    - /var/service/node_exporter
+    - /var/service/node_exporter/log
+  register: node_exporter_supervision
+  until: node_exporter_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart node_exporter
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/node_exporter
+  register: node_exporter_restart_result
+  changed_when: node_exporter_restart_result is succeeded
+  failed_when: node_exporter_restart_result is not succeeded
+
+- name: Restart node_exporter logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/node_exporter/log
+  register: node_exporter_logger_restart_result
+  changed_when: node_exporter_logger_restart_result is succeeded
+  failed_when: node_exporter_logger_restart_result is not succeeded

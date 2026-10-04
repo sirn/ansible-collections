@@ -1,0 +1,11 @@
+---
+node_exporter_user: nobody
+
+node_exporter_listen_address: 127.0.0.1:9100
+
+node_exporter_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/node_exporter/
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

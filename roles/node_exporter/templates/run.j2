@@ -1,0 +1,5 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ node_exporter_user }}
+fdmove -c 2 1
+/usr/local/bin/node_exporter
+  --web.listen-address={{ node_exporter_listen_address }}

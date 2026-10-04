@@ -1,0 +1,22 @@
+---
+- name: test node_exporter configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load node_exporter defaults
+      ansible.builtin.include_vars: ../roles/node_exporter/defaults/main.yml
+
+    - name: render node_exporter service command
+      ansible.builtin.set_fact:
+        node_exporter_run: "{{ lookup('template', '../roles/node_exporter/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - node_exporter_run is search('fdmove -c 2 1')
+          - node_exporter_run is search('s6-setuidgid')
+          - node_exporter_run is not search('/usr/sbin/daemon')
+          - node_exporter_run is search('--web.listen-address=127.0.0.1:9100')

@@ -1,0 +1,73 @@
+---
+- name: Install node_exporter
+  become: true
+  community.general.pkgng:
+    name: node_exporter
+    state: latest
+  notify:
+    - Restart node_exporter
+
+- name: Disable node_exporter rc service
+  become: true
+  community.general.sysrc:
+    name: node_exporter_enable
+    value: "NO"
+
+- name: Check node_exporter supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/node_exporter/supervise
+  register: node_exporter_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant node_exporter rc service
+  become: true
+  ansible.builtin.service:
+    name: node_exporter
+    state: stopped
+  when: not node_exporter_supervise.stat.exists
+
+- name: Ensure node_exporter log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/node_exporter
+    state: directory
+    mode: "0755"
+
+- name: Ensure node_exporter service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ node_exporter_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: node_exporter_item
+  with_items:
+    - /var/service/node_exporter
+    - /var/service/node_exporter/log
+
+- name: Install node_exporter service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/node_exporter/run
+    mode: "0555"
+  notify:
+    - Rescan node_exporter s6
+    - Wait for node_exporter supervision
+    - Restart node_exporter
+
+- name: Install node_exporter log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/node_exporter/log/run
+    mode: "0555"
+    content: "{{ node_exporter_logger }}"
+  notify:
+    - Rescan node_exporter s6
+    - Wait for node_exporter supervision
+    - Restart node_exporter logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
