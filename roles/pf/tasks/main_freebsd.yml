@@ -27,7 +27,7 @@
     src: pf_freebsd.conf.j2
     dest: /etc/pf.conf
     validate: "pfctl -n -f %s"
-    mode: 0600
+    mode: "0600"
   notify:
     - flush pf
     - wait for pf flush

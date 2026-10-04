@@ -44,7 +44,7 @@
     state: directory
     owner: duplicity
     group: duplicity
-    mode: 0700
+    mode: "0700"
   with_items:
     - "{{ duplicity_dir }}"
     - "{{ duplicity_datadir }}"
@@ -166,7 +166,7 @@
   ansible.builtin.template:
     src: duplicity.j2
     dest: /var/service/duplicity/run
-    mode: 0555
+    mode: "0555"
   notify:
     - rescan duplicity s6
     - restart duplicity

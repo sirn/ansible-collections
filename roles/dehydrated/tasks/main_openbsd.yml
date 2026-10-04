@@ -17,7 +17,7 @@
     url: https://raw.githubusercontent.com/lukas2511/dehydrated/v0.6.2/dehydrated
     checksum: "sha256:7c1c484de3337127413518f6f7d68470e373785797c4a030ae58479d7ce70839"
     dest: /usr/local/bin/dehydrated
-    mode: 0755
+    mode: "0755"
 
 - name: install lexicon
   become: true
@@ -47,7 +47,7 @@
     state: directory
     owner: _dehydrated
     group: _dehydrated
-    mode: 0750
+    mode: "0750"
   with_items:
     - /etc/dehydrated
     - /etc/dehydrated/certs
@@ -64,7 +64,7 @@
     dest: /etc/dehydrated/hook.sh
     owner: _dehydrated
     group: _dehydrated
-    mode: 0700
+    mode: "0700"
 
 - name: configure dehydrated domains
   become: true
@@ -72,7 +72,7 @@
     dest: /etc/dehydrated/domains.txt
     owner: _dehydrated
     group: _dehydrated
-    mode: 0500
+    mode: "0500"
     content: |
       {% if dehydrated_domains %}
       {% for domain in dehydrated_domains %}
@@ -86,7 +86,7 @@
     dest: /etc/dehydrated/config
     owner: _dehydrated
     group: _dehydrated
-    mode: 0500
+    mode: "0500"
     content: |
       {% if dehydrated_staging %}
       CA="https://acme-staging-v02.api.letsencrypt.org/directory"
@@ -122,7 +122,7 @@
     dest: /etc/dehydrated/periodic.sh
     owner: _dehydrated
     group: _dehydrated
-    mode: 0700
+    mode: "0700"
 
 - name: install dehydrated periodic cron
   become: true

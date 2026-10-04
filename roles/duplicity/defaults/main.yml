@@ -9,7 +9,7 @@ duplicity_full_if_older_than: 1W
 
 duplicity_gpg_recipients:
   - url: https://example.com/pgp_keys.asc
-    id: 0000000000000000000000000000000000000000
+    id: "0000000000000000000000000000000000000000"
 
 duplicity_logger: |
   #!/usr/local/bin/execlineb -P

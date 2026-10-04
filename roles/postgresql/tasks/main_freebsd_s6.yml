@@ -108,7 +108,7 @@
     dest: "{{ postgresql_dir }}/data{{ postgresql_version }}/pg_hba.conf"
     owner: "{{ postgresql_user }}"
     group: "{{ postgresql_group }}"
-    mode: 0600
+    mode: "0600"
   notify:
     - restart postgresql
 
@@ -119,7 +119,7 @@
     dest: "{{ postgresql_dir }}/data{{ postgresql_version }}/postgresql.conf"
     owner: "{{ postgresql_user }}"
     group: "{{ postgresql_group }}"
-    mode: 0600
+    mode: "0600"
   notify:
     - restart postgresql
 
@@ -131,7 +131,7 @@
   ansible.builtin.file:
     dest: "{{ item }}"
     state: directory
-    mode: 0755
+    mode: "0755"
   with_items:
     - /var/service/postgresql
     - /var/service/postgresql/log

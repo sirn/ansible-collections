@@ -44,7 +44,7 @@
   ansible.builtin.file:
     dest: "{{ item }}"
     state: directory
-    mode: 0755
+    mode: "0755"
   with_items:
     - /var/service/nginx-cloudflare
     - /var/service/nginx-cloudflare/log
