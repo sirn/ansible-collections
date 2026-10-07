@@ -1,0 +1,58 @@
+---
+- name: Test Varnish access log configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: Load Varnish defaults
+      ansible.builtin.include_vars: ../roles/varnish/defaults/main.yml
+
+    - name: Render default access log command
+      ansible.builtin.set_fact:
+        varnish_ncsa_default_run: "{{ lookup('template', '../roles/varnish/templates/varnishncsa_run.j2') }}"
+
+    - name: Check JSON logging is the default
+      ansible.builtin.assert:
+        that:
+          - varnish_ncsa_format | from_json is mapping
+          - varnish_ncsa_default_run is search('-c -j -F')
+          - varnish_ncsa_default_run is search('-n /var/varnish/data/testhost')
+
+    - name: Decode JSON access log format
+      ansible.builtin.set_fact:
+        varnish_ncsa_test_format: "{{ varnish_ncsa_default_run.split('-F ')[1] | trim | from_json }}"
+
+    - name: Check request time and private fields
+      ansible.builtin.assert:
+        that:
+          - varnish_ncsa_test_format == varnish_ncsa_format
+          - varnish_ncsa_test_format is search('%U')
+          - varnish_ncsa_test_format is search('%\{sec\}t')
+          - varnish_ncsa_test_format is search('%\{msec_frac\}t')
+          - varnish_ncsa_test_format is search('Varnish:handling')
+          - varnish_ncsa_test_format is not search('%q|%r|%h|Cookie|Authorization|User-Agent|Referer')
+          - varnish_ncsa_test_format | from_json is mapping
+
+    - name: Set custom access log format
+      ansible.builtin.set_fact:
+        varnish_ncsa_format: '{"request":"%m %U","literal":"\\","status":"%s"}'
+
+    - name: Check custom format and quoting
+      ansible.builtin.assert:
+        that:
+          - >-
+            lookup('template', '../roles/varnish/templates/varnishncsa_run.j2').split('-F ')[1] | trim | from_json
+            == varnish_ncsa_format
+
+    - name: Select native logging
+      ansible.builtin.set_fact:
+        varnish_ncsa_format: ""
+
+    - name: Check empty format uses native logging
+      ansible.builtin.assert:
+        that:
+          - >-
+            lookup('template', '../roles/varnish/templates/varnishncsa_run.j2').split('/usr/local/bin/varnishncsa')[1]
+            is not search('-c|-j|-F')

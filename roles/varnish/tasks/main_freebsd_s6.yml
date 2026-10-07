@@ -126,6 +126,8 @@
 ##
 
 - name: ensure varnishncsa service directories
+  tags:
+    - varnish_ncsa_config
   become: true
   ansible.builtin.file:
     dest: "{{ item }}"
@@ -136,6 +138,8 @@
     - /var/service/varnishncsa/log
 
 - name: install varnishncsa service
+  tags:
+    - varnish_ncsa_config
   become: true
   ansible.builtin.template:
     src: varnishncsa_run.j2
@@ -146,6 +150,8 @@
     - restart varnishncsa
 
 - name: install varnishncsa s6 logging service
+  tags:
+    - varnish_ncsa_config
   become: true
   ansible.builtin.copy:
     dest: /var/service/varnishncsa/log/run

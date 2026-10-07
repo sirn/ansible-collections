@@ -13,6 +13,13 @@ varnish_cli_addresses:
 varnish_flags:
   - -p feature=+http2
 
+# Quote fields that can be absent. Do not log client addresses or query strings.
+# Set an empty string to use varnishncsa's native format.
+varnish_ncsa_format: >-
+  {"time":"%{sec}t.%{msec_frac}t","message":"%m %U","method":"%m",
+  "vhost":"%{Host}i","path":"%U","status":"%s","bytes":"%b",
+  "duration_us":"%D","cache":"%{Varnish:handling}x"}
+
 varnish_ncsa_logger: |
   #!/usr/local/bin/execlineb -P
   s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/varnishncsa/

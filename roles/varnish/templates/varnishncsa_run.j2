@@ -4,3 +4,6 @@ fdmove -c 2 1
 s6-setuidgid varnish
 /usr/local/bin/varnishncsa
     -n {{ varnish_prefix }}/data/{{ ansible_hostname }}
+{% if varnish_ncsa_format %}
+    -c -j -F "{{ varnish_ncsa_format | replace('\\', '\\\\') | replace('"', '\\"') }}"
+{% endif %}
