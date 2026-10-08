@@ -11,6 +11,11 @@ root_url = {{ grafana_root_url }}
 
 [log]
 mode = console
+{% if grafana_allow_loading_unsigned_plugins | length > 0 %}
+
+[plugins]
+allow_loading_unsigned_plugins = {{ grafana_allow_loading_unsigned_plugins | join(',') }}
+{% endif %}
 
 [security]
 admin_user = {{ grafana_admin_user }}

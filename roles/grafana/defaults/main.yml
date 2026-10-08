@@ -19,7 +19,9 @@ grafana_admin_password: ""
 
 grafana_data_dir: /var/db/grafana
 
-grafana_datasource_url: ""
+grafana_datasources: []
+
+grafana_allow_loading_unsigned_plugins: []
 
 # Each item supplies src (a controller file) and filename (a JSON basename).
 grafana_dashboards: []

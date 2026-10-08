@@ -32,13 +32,20 @@
     that:
       - grafana_domain | length > 0
       - grafana_root_url is match('https://')
-      - grafana_datasource_url | length > 0
       - grafana_admin_password | length > 0
       - "'\n' not in grafana_admin_password"
       - "'\r' not in grafana_admin_password"
       - >-
         '"""' not in grafana_admin_password
   no_log: true
+
+- name: Check grafana unsigned plugin IDs
+  ansible.builtin.assert:
+    that:
+      - grafana_item is match('^[a-zA-Z0-9_-]+$')
+  with_items: "{{ grafana_allow_loading_unsigned_plugins }}"
+  loop_control:
+    loop_var: grafana_item
 
 - name: Ensure grafana writable directories
   become: true
@@ -84,14 +91,24 @@
   notify:
     - Restart grafana
 
-- name: Provision grafana datasource
+- name: Provision grafana datasources
   become: true
   ansible.builtin.template:
     src: datasource.yml.j2
-    dest: /usr/local/etc/grafana/provisioning/datasources/victoriametrics.yml
+    dest: /usr/local/etc/grafana/provisioning/datasources/default.yml
     owner: root
     group: grafana
     mode: "0640"
+  no_log: true
+  diff: false
+  notify:
+    - Restart grafana
+
+- name: Remove previous grafana datasource provisioning file
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/etc/grafana/provisioning/datasources/victoriametrics.yml
+    state: absent
   notify:
     - Restart grafana
 
