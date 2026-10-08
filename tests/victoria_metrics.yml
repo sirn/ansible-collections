@@ -22,7 +22,7 @@
 
     - name: set listener address
       ansible.builtin.set_fact:
-        victoria_metrics_listen_address: 10.0.0.3:8428
+        victoria_metrics_listen_address: 192.0.2.10:8428
 
     - name: render private listener
       ansible.builtin.set_fact:
@@ -31,4 +31,4 @@
     - name: check private listener
       ansible.builtin.assert:
         that:
-          - victoria_metrics_private_run is search('-httpListenAddr=10.0.0.3:8428')
+          - victoria_metrics_private_run is search('-httpListenAddr=192.0.2.10:8428')

@@ -49,6 +49,7 @@ hosts with `s6: true`:
 
 | Tag | Selected tasks |
 |-----|----------------|
+| `varnish_ncsa_config` | Replace only the Varnish access-log service and logger |
 | `nginx_config` | Validate and replace nginx configuration |
 | `php_config` | Validate and replace the PHP-FPM pool configuration |
 | `haproxy_config` | Validate and replace HAProxy configuration |
@@ -102,8 +103,11 @@ Only implemented entry points are shipped, for example `main_freebsd.yml`,
 - `sanoid` — ZFS snapshot management
 - `varnish` — Varnish cache
 - [`victoria_metrics`](roles/victoria_metrics/README.md) — single-node metrics storage
+- [`victoria_logs`](roles/victoria_logs/README.md) — single-node log storage
+- [`vlagent`](roles/vlagent/README.md) — file collection and queued log delivery
 - [`vmagent`](roles/vmagent/README.md) — metrics scraping and queued remote write
 - [`grafana`](roles/grafana/README.md) — dashboards and datasource provisioning
+- [`grafana_victorialogs_plugin`](roles/grafana_victorialogs_plugin/README.md) — local VictoriaLogs plugin build and installation
 - [`blackbox_exporter`](roles/blackbox_exporter/README.md) — HTTP endpoint probes
 - [`node_exporter`](roles/node_exporter/README.md) — FreeBSD host metrics
 - [`mysqld_exporter`](roles/mysqld_exporter/README.md) — MySQL and MariaDB metrics

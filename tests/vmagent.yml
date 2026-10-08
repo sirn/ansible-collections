@@ -26,7 +26,7 @@
 
     - name: set scrape configuration inputs
       ansible.builtin.set_fact:
-        vmagent_remote_write_url: http://10.0.0.3:8428/api/v1/write
+        vmagent_remote_write_url: http://192.0.2.10:8428/api/v1/write
         vmagent_scrape_configs:
           - job_name: node
             static_configs:
