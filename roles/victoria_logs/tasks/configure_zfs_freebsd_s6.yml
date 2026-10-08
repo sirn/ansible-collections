@@ -1,0 +1,43 @@
+---
+- name: Inspect victoria_logs parent dataset
+  become: true
+  community.general.zfs_facts:
+    name: "{{ victoria_logs_dataset.rsplit('/', 1)[0] }}"
+    recurse: true
+    depth: 1
+    type: filesystem
+    properties: mountpoint,mounted,canmount
+  register: victoria_logs_zfs
+
+- name: Check victoria_logs dataset mountpoints
+  ansible.builtin.assert:
+    that:
+      - victoria_logs_data_dir.startswith(victoria_logs_zfs.ansible_facts.ansible_zfs_datasets[0].mountpoint.rstrip('/') + '/')
+      - >-
+        victoria_logs_zfs.ansible_facts.ansible_zfs_datasets[0].mounted == 'yes'
+        or victoria_logs_zfs.ansible_facts.ansible_zfs_datasets[0].canmount == 'off'
+      - victoria_logs_item.name != victoria_logs_dataset or victoria_logs_item.mountpoint == victoria_logs_data_dir
+      - victoria_logs_item.name != victoria_logs_dataset or victoria_logs_item.mounted == 'yes'
+      - victoria_logs_item.mountpoint != victoria_logs_data_dir or victoria_logs_item.name == victoria_logs_dataset
+    fail_msg: Check the existing ZFS layout before mounting VictoriaLogs storage.
+  with_items: "{{ victoria_logs_zfs.ansible_facts.ansible_zfs_datasets }}"
+  loop_control:
+    loop_var: victoria_logs_item
+    label: "{{ victoria_logs_item.name }}"
+
+- name: Prevent mounting over existing victoria_logs data
+  ansible.builtin.assert:
+    that:
+      - >-
+        victoria_logs_dataset in (victoria_logs_zfs.ansible_facts.ansible_zfs_datasets | map(attribute='name') | list)
+        or victoria_logs_existing_data.matched | default(0) == 0
+    fail_msg: Existing data needs an approved migration before creating the dataset.
+
+- name: Ensure victoria_logs dataset
+  become: true
+  community.general.zfs:
+    name: "{{ victoria_logs_dataset }}"
+    state: present
+    extra_zfs_properties:
+      compression: zstd
+      mountpoint: "{{ victoria_logs_data_dir }}"

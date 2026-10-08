@@ -1,0 +1,94 @@
+---
+- name: Configure victoria_logs storage
+  ansible.builtin.import_tasks: configure_storage_freebsd_s6.yml
+
+- name: Install victoria_logs
+  become: true
+  community.general.pkgng:
+    name: victoria-logs
+    state: latest
+  notify:
+    - Restart victoria_logs
+
+- name: Disable victoria_logs rc service
+  become: true
+  community.general.sysrc:
+    name: victoria_logs_enable
+    value: "NO"
+
+- name: Check victoria_logs supervision
+  become: true
+  ansible.builtin.stat:
+    path: /var/service/victoria-logs/supervise
+  register: victoria_logs_supervise
+
+# The rc script can match the s6-owned process. Stop it only during takeover.
+- name: Stop redundant victoria_logs rc service
+  become: true
+  ansible.builtin.service:
+    name: victoria_logs
+    state: stopped
+  when: not victoria_logs_supervise.stat.exists
+
+- name: Ensure victoria_logs user
+  become: true
+  ansible.builtin.user:
+    name: "{{ victoria_logs_user }}"
+    group: victoria-logs
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+
+- name: Ensure victoria_logs data directory ownership
+  become: true
+  ansible.builtin.file:
+    path: "{{ victoria_logs_data_dir }}"
+    state: directory
+    owner: "{{ victoria_logs_user }}"
+    group: victoria-logs
+    mode: "0700"
+
+- name: Ensure victoria_logs log directory
+  become: true
+  ansible.builtin.file:
+    path: /var/log/victoria-logs
+    state: directory
+    mode: "0755"
+
+- name: Ensure victoria_logs service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ victoria_logs_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: victoria_logs_item
+  with_items:
+    - /var/service/victoria-logs
+    - /var/service/victoria-logs/log
+
+- name: Install victoria_logs service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/victoria-logs/run
+    mode: "0555"
+  notify:
+    - Rescan victoria_logs s6
+    - Wait for victoria_logs supervision
+    - Restart victoria_logs
+
+- name: Install victoria_logs log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/victoria-logs/log/run
+    mode: "0555"
+    content: "{{ victoria_logs_logger }}"
+  notify:
+    - Rescan victoria_logs s6
+    - Wait for victoria_logs supervision
+    - Restart victoria_logs logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

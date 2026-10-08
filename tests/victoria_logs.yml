@@ -1,0 +1,62 @@
+---
+- name: test victoria_logs configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_hostname: testhost
+  tasks:
+    - name: load victoria_logs defaults
+      ansible.builtin.include_vars: ../roles/victoria_logs/defaults/main.yml
+
+    - name: render victoria_logs service command
+      ansible.builtin.set_fact:
+        victoria_logs_run: "{{ lookup('template', '../roles/victoria_logs/templates/run.j2') }}"
+
+    - name: check foreground service command
+      ansible.builtin.assert:
+        that:
+          - victoria_logs_run is search('fdmove -c 2 1')
+          - victoria_logs_run is search('s6-setuidgid')
+          - victoria_logs_run is not search('/usr/sbin/daemon')
+
+    - name: Configure custom service user
+      ansible.builtin.set_fact:
+        victoria_logs_user: example-logs
+
+    - name: Check custom service account
+      ansible.builtin.assert:
+        that:
+          - victoria_logs_test_users | length == 1
+          - victoria_logs_test_users[0]['ansible.builtin.user'].name == victoria_logs_user
+          - victoria_logs_test_users[0]['ansible.builtin.user'].group == 'victoria-logs'
+          - victoria_logs_test_users[0]['ansible.builtin.user'].shell == '/usr/sbin/nologin'
+          - not victoria_logs_test_users[0]['ansible.builtin.user'].create_home
+          - victoria_logs_test_users[0]['ansible.builtin.user'].system
+          - lookup('template', '../roles/victoria_logs/templates/run.j2') is search('s6-setuidgid example-logs')
+      vars:
+        victoria_logs_item: example
+        victoria_logs_test_tasks: "{{ lookup('template', '../roles/victoria_logs/tasks/main_freebsd_s6.yml') | from_yaml }}"
+        victoria_logs_test_users: "{{ victoria_logs_test_tasks | selectattr('name', 'equalto', 'Ensure victoria_logs user') | list }}"
+
+    - name: set listener address
+      ansible.builtin.set_fact:
+        victoria_logs_listen_address: 192.0.2.10:9428
+
+    - name: render private listener
+      ansible.builtin.set_fact:
+        victoria_logs_private_run: "{{ lookup('template', '../roles/victoria_logs/templates/run.j2') }}"
+
+    - name: check private listener
+      ansible.builtin.assert:
+        that:
+          - victoria_logs_private_run is search('-httpListenAddr=192.0.2.10:9428')
+
+    - name: Check retention and storage budgets
+      ansible.builtin.assert:
+        that:
+          - victoria_logs_private_run is search('-retentionPeriod=90d')
+          - victoria_logs_private_run is search('-retention.maxDiskSpaceUsageBytes=4GiB')
+          - victoria_logs_private_run is search('-storage.minFreeDiskSpaceBytes=2GiB')
+          - victoria_logs_private_run is search('-memory.allowedBytes=256MiB')
+          - victoria_logs_dataset == ''

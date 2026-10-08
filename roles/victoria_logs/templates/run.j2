@@ -1,0 +1,10 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ victoria_logs_user }}
+fdmove -c 2 1
+/usr/local/bin/victoria-logs
+  -storageDataPath={{ victoria_logs_data_dir }}
+  -retentionPeriod={{ victoria_logs_retention }}
+  -retention.maxDiskSpaceUsageBytes={{ victoria_logs_max_disk_usage }}
+  -storage.minFreeDiskSpaceBytes={{ victoria_logs_min_free_disk_space }}
+  -memory.allowedBytes={{ victoria_logs_memory_allowed_bytes }}
+  -httpListenAddr={{ victoria_logs_listen_address }}

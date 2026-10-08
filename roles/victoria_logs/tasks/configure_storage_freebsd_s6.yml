@@ -1,0 +1,27 @@
+---
+- name: Inspect victoria_logs data path
+  become: true
+  ansible.builtin.stat:
+    path: "{{ victoria_logs_data_dir }}"
+  register: victoria_logs_data_path
+
+- name: Check victoria_logs data path
+  ansible.builtin.assert:
+    that:
+      - not victoria_logs_data_path.stat.exists or victoria_logs_data_path.stat.isdir
+      - not victoria_logs_data_path.stat.islnk | default(false)
+
+- name: Inspect existing victoria_logs data
+  become: true
+  ansible.builtin.find:
+    paths: "{{ victoria_logs_data_dir }}"
+    file_type: any
+    hidden: true
+  register: victoria_logs_existing_data
+  when:
+    - victoria_logs_dataset | length > 0
+    - victoria_logs_data_path.stat.exists
+
+- name: Configure victoria_logs ZFS storage
+  ansible.builtin.include_tasks: configure_zfs_freebsd_s6.yml
+  when: victoria_logs_dataset | length > 0

@@ -1,0 +1,23 @@
+---
+victoria_logs_user: victoria-logs
+
+victoria_logs_listen_address: 127.0.0.1:9428
+
+victoria_logs_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t /var/log/victoria-logs/
+
+victoria_logs_data_dir: /var/db/victoria-logs
+
+victoria_logs_dataset: ""
+
+victoria_logs_retention: 90d
+
+victoria_logs_max_disk_usage: 4GiB
+
+victoria_logs_min_free_disk_space: 2GiB
+
+victoria_logs_memory_allowed_bytes: 256MiB
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false
