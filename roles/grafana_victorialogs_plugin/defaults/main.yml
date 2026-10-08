@@ -1,0 +1,14 @@
+---
+grafana_victorialogs_plugin_version: 0.32.0
+grafana_victorialogs_plugin_architecture: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(ansible_architecture, ansible_architecture) }}"
+grafana_victorialogs_plugin_build_dir: "/var/cache/grafana-logs-plugin-v{{ grafana_victorialogs_plugin_version }}-freebsd-{{ grafana_victorialogs_plugin_architecture }}"
+grafana_victorialogs_plugin_source_url: "https://codeload.github.com/VictoriaMetrics/victorialogs-datasource/tar.gz/refs/tags/v{{ grafana_victorialogs_plugin_version }}"
+grafana_victorialogs_plugin_source_sha256: 4cfefe7095bddf5743311b8fdcd6740706b5b125ab90d5750ab00943a7f3bc88
+grafana_victorialogs_plugin_release_url: "https://github.com/VictoriaMetrics/victorialogs-datasource/releases/download/v{{ grafana_victorialogs_plugin_version }}/victoriametrics-logs-datasource-v{{ grafana_victorialogs_plugin_version }}.tar.gz"
+grafana_victorialogs_plugin_release_sha256: e100b767f19cd614ac8ac3860458a3fb33f5aa7a876e924d0340010e40d1c0d4
+grafana_victorialogs_plugin_src: "/var/cache/grafana-logs-plugin/victoriametrics-logs-datasource-v{{ grafana_victorialogs_plugin_version }}-freebsd-{{ grafana_victorialogs_plugin_architecture }}.tar.gz"
+
+grafana_victorialogs_plugin_dir: /var/db/grafana/plugins
+
+# S6 supervision is disabled by default. Enable it to restart Grafana.
+s6: false

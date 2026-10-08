@@ -1,0 +1,7 @@
+---
+- name: Restart grafana after plugin change
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/grafana
+  register: grafana_victorialogs_restart_result
+  changed_when: grafana_victorialogs_restart_result is succeeded
+  failed_when: grafana_victorialogs_restart_result is not succeeded

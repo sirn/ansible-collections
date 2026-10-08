@@ -1,0 +1,39 @@
+---
+- name: Test host log build defaults
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load agent defaults
+      ansible.builtin.include_vars: ../roles/vlagent/defaults/main.yml
+
+    - name: Load plugin defaults
+      ansible.builtin.include_vars: ../roles/grafana_victorialogs_plugin/defaults/main.yml
+
+    - name: Check target architecture aliases and host cache paths
+      ansible.builtin.assert:
+        that:
+          - vlagent_architecture == item.architecture
+          - grafana_victorialogs_plugin_architecture == item.architecture
+          - vlagent_binary_src.startswith('/var/cache/')
+          - grafana_victorialogs_plugin_src.startswith('/var/cache/')
+          - vlagent_build_dir.startswith('/var/cache/')
+          - grafana_victorialogs_plugin_build_dir.startswith('/var/cache/')
+          - vlagent_binary_src.endswith('-freebsd-' + item.architecture)
+          - grafana_victorialogs_plugin_src.endswith('-freebsd-' + item.architecture + '.tar.gz')
+          - vlagent_build_dir.endswith('-freebsd-' + item.architecture)
+          - grafana_victorialogs_plugin_build_dir.endswith('-freebsd-' + item.architecture)
+          - vlagent_source_sha256 is match('^[a-f0-9]{64}$')
+          - grafana_victorialogs_plugin_source_sha256 is match('^[a-f0-9]{64}$')
+          - grafana_victorialogs_plugin_release_sha256 is match('^[a-f0-9]{64}$')
+      vars:
+        ansible_architecture: "{{ item.fact }}"
+      loop:
+        - fact: arm64
+          architecture: arm64
+        - fact: aarch64
+          architecture: arm64
+        - fact: amd64
+          architecture: amd64
+        - fact: x86_64
+          architecture: amd64

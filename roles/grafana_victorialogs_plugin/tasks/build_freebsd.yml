@@ -1,0 +1,120 @@
+---
+- name: Prepare Grafana logs plugin on host
+  become: true
+  block:
+    - name: Install Grafana logs plugin build tools
+      community.general.pkgng:
+        name:
+          - go127
+          - gtar
+        state: present
+
+    - name: Ensure Grafana logs build directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ grafana_victorialogs_plugin_build_dir }}"
+        - "{{ grafana_victorialogs_plugin_src | dirname }}"
+
+    - name: Download verified Grafana logs source
+      ansible.builtin.get_url:
+        url: "{{ grafana_victorialogs_plugin_source_url }}"
+        dest: "{{ grafana_victorialogs_plugin_build_dir }}/source.tar.gz"
+        checksum: "sha256:{{ grafana_victorialogs_plugin_source_sha256 }}"
+        timeout: 60
+        mode: "0644"
+
+    - name: Download verified Grafana logs release
+      ansible.builtin.get_url:
+        url: "{{ grafana_victorialogs_plugin_release_url }}"
+        dest: "{{ grafana_victorialogs_plugin_build_dir }}/release.tar.gz"
+        checksum: "sha256:{{ grafana_victorialogs_plugin_release_sha256 }}"
+        timeout: 60
+        mode: "0644"
+
+    - name: Extract Grafana logs source
+      ansible.builtin.unarchive:
+        src: "{{ grafana_victorialogs_plugin_build_dir }}/source.tar.gz"
+        dest: "{{ grafana_victorialogs_plugin_build_dir }}"
+        remote_src: true
+
+    - name: Remove previous Grafana logs build package
+      ansible.builtin.file:
+        path: "{{ grafana_victorialogs_plugin_build_dir }}/package"
+        state: absent
+
+    - name: Ensure Grafana logs build package directory
+      ansible.builtin.file:
+        path: "{{ grafana_victorialogs_plugin_build_dir }}/package"
+        state: directory
+        mode: "0755"
+
+    # Reuse the verified frontend. The upstream signature cannot cover our backend.
+    - name: Extract Grafana logs frontend
+      ansible.builtin.unarchive:
+        src: "{{ grafana_victorialogs_plugin_build_dir }}/release.tar.gz"
+        dest: "{{ grafana_victorialogs_plugin_build_dir }}/package"
+        remote_src: true
+        exclude:
+          - MANIFEST.txt
+          - go_plugin_build_manifest
+          - victoriametrics_logs_backend_plugin_*
+
+    - name: Compile static FreeBSD Grafana logs backend
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/go127
+          - build
+          - -trimpath
+          - -buildvcs=false
+          - -mod=vendor
+          - -tags
+          - arrow_json_stdlib
+          - >-
+            -ldflags=-w -s -X 'github.com/grafana/grafana-plugin-sdk-go/build/buildinfo.buildInfoJSON={"pluginID":"victoriametrics-logs-datasource","version":"{{ grafana_victorialogs_plugin_version }}"}'
+          - -o
+          - "{{ grafana_victorialogs_plugin_build_dir }}/package/victoriametrics-logs-datasource/victoriametrics_logs_backend_plugin_freebsd_{{ grafana_victorialogs_plugin_architecture }}"
+          - ./pkg
+        chdir: "{{ grafana_victorialogs_plugin_build_dir }}/victorialogs-datasource-{{ grafana_victorialogs_plugin_version }}"
+      environment:
+        GOTOOLCHAIN: local
+        CGO_ENABLED: "0"
+        GOCACHE: "{{ grafana_victorialogs_plugin_build_dir }}/go-cache"
+      timeout: 600
+      changed_when: true
+
+    - name: Package Grafana logs plugin with fixed metadata
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/gtar
+          - --sort=name
+          - --mtime=@0
+          - --owner=0
+          - --group=0
+          - --numeric-owner
+          - --mode=u+rwX,go+rX,go-w
+          - -cf
+          - "{{ grafana_victorialogs_plugin_build_dir }}/plugin.tar"
+          - victoriametrics-logs-datasource
+        chdir: "{{ grafana_victorialogs_plugin_build_dir }}/package"
+      timeout: 60
+      changed_when: true
+
+    - name: Compress Grafana logs plugin with fixed metadata
+      ansible.builtin.command:
+        argv:
+          - gzip
+          - -n
+          - -f
+          - "{{ grafana_victorialogs_plugin_build_dir }}/plugin.tar"
+      timeout: 60
+      changed_when: true
+
+    - name: Cache built Grafana logs package
+      ansible.builtin.copy:
+        src: "{{ grafana_victorialogs_plugin_build_dir }}/plugin.tar.gz"
+        dest: "{{ grafana_victorialogs_plugin_src }}"
+        remote_src: true
+        mode: "0644"

@@ -1,0 +1,85 @@
+---
+- name: Inspect cached host Grafana logs plugin
+  become: true
+  ansible.builtin.stat:
+    path: "{{ grafana_victorialogs_plugin_src }}"
+  register: grafana_victorialogs_cached_plugin
+
+- name: Report required host Grafana logs plugin build
+  ansible.builtin.debug:
+    msg: The cached build is absent. Run without check mode to build it on the host.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - not grafana_victorialogs_cached_plugin.stat.exists
+
+- name: Build host Grafana logs plugin
+  ansible.builtin.include_tasks: "build_{{ ansible_os_family | lower }}.yml"
+  when:
+    - not grafana_victorialogs_cached_plugin.stat.exists
+    - not ansible_check_mode
+
+- name: Install Grafana plugin archive tools
+  become: true
+  community.general.pkgng:
+    name: gtar
+    state: present
+
+- name: Copy built Grafana logs plugin package
+  become: true
+  ansible.builtin.copy:
+    src: "{{ grafana_victorialogs_plugin_src }}"
+    remote_src: true
+    dest: "/var/cache/victoriametrics-logs-datasource-v{{ grafana_victorialogs_plugin_version }}-{{ grafana_victorialogs_plugin_architecture }}.tar.gz"
+    owner: root
+    group: wheel
+    mode: "0644"
+  register: grafana_victorialogs_plugin_copy
+  when: not ansible_check_mode or grafana_victorialogs_cached_plugin.stat.exists
+
+- name: Inspect Grafana logs plugin backend
+  become: true
+  ansible.builtin.stat:
+    path: "{{ grafana_victorialogs_plugin_dir }}/victoriametrics-logs-datasource/victoriametrics_logs_backend_plugin_freebsd_{{ grafana_victorialogs_plugin_architecture }}"
+  register: grafana_victorialogs_plugin
+
+# Remove old files so an upstream signature cannot survive a local rebuild.
+- name: Remove previous Grafana logs plugin
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_victorialogs_plugin_dir }}/victoriametrics-logs-datasource"
+    state: absent
+  when: grafana_victorialogs_plugin_copy.changed or not grafana_victorialogs_plugin.stat.exists
+
+- name: Install Grafana logs plugin
+  become: true
+  ansible.builtin.unarchive:
+    src: "/var/cache/victoriametrics-logs-datasource-v{{ grafana_victorialogs_plugin_version }}-{{ grafana_victorialogs_plugin_architecture }}.tar.gz"
+    dest: "{{ grafana_victorialogs_plugin_dir }}"
+    remote_src: true
+    owner: root
+    group: grafana
+  when:
+    - grafana_victorialogs_plugin_copy.changed or not grafana_victorialogs_plugin.stat.exists
+    - not ansible_check_mode
+  notify:
+    - Restart grafana after plugin change
+
+- name: Remove Grafana logs plugin signature
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_victorialogs_plugin_dir }}/victoriametrics-logs-datasource/MANIFEST.txt"
+    state: absent
+  notify:
+    - Restart grafana after plugin change
+
+- name: Set Grafana logs plugin backend permissions
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_victorialogs_plugin_dir }}/victoriametrics-logs-datasource/victoriametrics_logs_backend_plugin_freebsd_{{ grafana_victorialogs_plugin_architecture }}"
+    owner: root
+    group: grafana
+    mode: "0555"
+  when: not ansible_check_mode or grafana_victorialogs_plugin.stat.exists
+  notify:
+    - Restart grafana after plugin change
