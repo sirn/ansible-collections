@@ -1,0 +1,60 @@
+---
+- name: Prepare vlagent on host
+  become: true
+  block:
+    - name: Install vlagent build tools
+      community.general.pkgng:
+        name:
+          - go127
+          - gmake
+          - gtar
+        state: present
+
+    - name: Ensure vlagent build directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ vlagent_build_dir }}"
+        - "{{ vlagent_binary_src | dirname }}"
+
+    - name: Download verified vlagent source
+      ansible.builtin.get_url:
+        url: "{{ vlagent_source_url }}"
+        dest: "{{ vlagent_build_dir }}/source.tar.gz"
+        checksum: "sha256:{{ vlagent_source_sha256 }}"
+        timeout: 60
+        mode: "0644"
+
+    - name: Extract vlagent source
+      ansible.builtin.unarchive:
+        src: "{{ vlagent_build_dir }}/source.tar.gz"
+        dest: "{{ vlagent_build_dir }}"
+        remote_src: true
+
+    - name: Compile static FreeBSD vlagent
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/gmake
+          - app-local-pure
+          - APP_NAME=vlagent
+          - "PKG_TAG=v{{ vlagent_version }}"
+          - "BUILDINFO_TAG=tags-v{{ vlagent_version }}"
+          - DATEINFO_TAG=20260924-000000
+        chdir: "{{ vlagent_build_dir }}/VictoriaLogs-{{ vlagent_version }}"
+      environment:
+        PATH: "/usr/local/go127/bin:/usr/local/bin:/usr/bin:/bin"
+        GOTOOLCHAIN: local
+        CGO_ENABLED: "0"
+        GOFLAGS: -trimpath -buildvcs=false -mod=vendor
+        GOCACHE: "{{ vlagent_build_dir }}/go-cache"
+      timeout: 600
+      changed_when: true
+
+    - name: Cache built vlagent binary
+      ansible.builtin.copy:
+        src: "{{ vlagent_build_dir }}/VictoriaLogs-{{ vlagent_version }}/bin/vlagent-pure"
+        dest: "{{ vlagent_binary_src }}"
+        remote_src: true
+        mode: "0555"

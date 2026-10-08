@@ -1,0 +1,35 @@
+---
+- name: Rescan vlagent s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: vlagent_rescan_result
+  changed_when: vlagent_rescan_result is succeeded
+  failed_when: vlagent_rescan_result is not succeeded
+
+- name: Wait for vlagent supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ vlagent_item }}"
+  loop_control:
+    loop_var: vlagent_item
+  with_items:
+    - /var/service/vlagent
+    - /var/service/vlagent/log
+  register: vlagent_supervision
+  until: vlagent_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart vlagent
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/vlagent
+  register: vlagent_restart_result
+  changed_when: vlagent_restart_result is succeeded
+  failed_when: vlagent_restart_result is not succeeded
+
+- name: Restart vlagent logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/vlagent/log
+  register: vlagent_logger_restart_result
+  changed_when: vlagent_logger_restart_result is succeeded
+  failed_when: vlagent_logger_restart_result is not succeeded

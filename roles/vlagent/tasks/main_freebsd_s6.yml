@@ -1,0 +1,102 @@
+---
+- name: Check vlagent settings
+  ansible.builtin.assert:
+    that:
+      - vlagent_file_glob | length > 0
+      - vlagent_remote_write_url | length > 0
+
+- name: Inspect cached host vlagent binary
+  become: true
+  ansible.builtin.stat:
+    path: "{{ vlagent_binary_src }}"
+  register: vlagent_cached_binary
+
+- name: Report required host vlagent binary build
+  ansible.builtin.debug:
+    msg: The cached build is absent. Run without check mode to build it on the host.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - not vlagent_cached_binary.stat.exists
+
+- name: Build host vlagent binary
+  ansible.builtin.include_tasks: "build_{{ ansible_os_family | lower }}.yml"
+  when:
+    - not vlagent_cached_binary.stat.exists
+    - not ansible_check_mode
+
+- name: Ensure vlagent group
+  become: true
+  ansible.builtin.group:
+    name: "{{ vlagent_user }}"
+    state: present
+
+- name: Ensure vlagent user
+  become: true
+  ansible.builtin.user:
+    name: "{{ vlagent_user }}"
+    group: "{{ vlagent_user }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+
+- name: Install vlagent binary
+  become: true
+  ansible.builtin.copy:
+    src: "{{ vlagent_binary_src }}"
+    remote_src: true
+    dest: /usr/local/bin/vlagent
+    owner: root
+    group: wheel
+    mode: "0555"
+  when: not ansible_check_mode or vlagent_cached_binary.stat.exists
+  notify:
+    - Restart vlagent
+
+- name: Ensure vlagent queue and checkpoint directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ vlagent_data_dir }}"
+    state: directory
+    owner: "{{ vlagent_user }}"
+    group: "{{ vlagent_user }}"
+    mode: "0700"
+
+- name: Ensure vlagent service directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ vlagent_item }}"
+    state: directory
+    mode: "0755"
+  loop_control:
+    loop_var: vlagent_item
+  with_items:
+    - /var/log/vlagent
+    - /var/service/vlagent
+    - /var/service/vlagent/log
+
+- name: Install vlagent service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/vlagent/run
+    mode: "0555"
+  notify:
+    - Rescan vlagent s6
+    - Wait for vlagent supervision
+    - Restart vlagent
+
+- name: Install vlagent log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/vlagent/log/run
+    mode: "0555"
+    content: "{{ vlagent_logger }}"
+  notify:
+    - Rescan vlagent s6
+    - Wait for vlagent supervision
+    - Restart vlagent logger
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,112 @@
+---
+- name: Test vlagent configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load vlagent defaults
+      ansible.builtin.include_vars: ../roles/vlagent/defaults/main.yml
+
+    - name: Check log source is required
+      ansible.builtin.assert:
+        that:
+          - vlagent_file_glob == ''
+
+    - name: Reject absent log source
+      block:
+        - name: Check empty log source
+          ansible.builtin.include_role:
+            name: ../roles/vlagent
+          vars:
+            s6: true
+            ansible_os_family: FreeBSD
+            ansible_architecture: arm64
+      rescue:
+        - name: Verify empty log source was rejected
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Check vlagent settings'
+              - ansible_failed_result.assertion == 'vlagent_file_glob | length > 0'
+        - name: Record log source rejection
+          ansible.builtin.set_fact:
+            vlagent_test_source_rejected: true
+
+    - name: Require log source rejection
+      ansible.builtin.assert:
+        that:
+          - vlagent_test_source_rejected | default(false)
+
+    - name: Reject absent log destination
+      block:
+        - name: Check empty log destination
+          ansible.builtin.include_role:
+            name: ../roles/vlagent
+          vars:
+            s6: true
+            ansible_os_family: FreeBSD
+            ansible_architecture: arm64
+            vlagent_file_glob: /var/log/example/current
+      rescue:
+        - name: Verify empty log destination was rejected
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Check vlagent settings'
+              - ansible_failed_result.assertion == 'vlagent_remote_write_url | length > 0'
+        - name: Record log destination rejection
+          ansible.builtin.set_fact:
+            vlagent_test_destination_rejected: true
+
+    - name: Require log destination rejection
+      ansible.builtin.assert:
+        that:
+          - vlagent_test_destination_rejected | default(false)
+
+    - name: Set test log destination and labels
+      ansible.builtin.set_fact:
+        vlagent_file_glob: /var/log/example/current
+        vlagent_remote_write_url: http://192.0.2.10:9428/insert/native
+        vlagent_extra_fields:
+          host: testhost
+          job: varnishncsa
+
+    - name: Render log agent service
+      ansible.builtin.set_fact:
+        vlagent_run: "{{ lookup('template', '../roles/vlagent/templates/run.j2') }}"
+
+    - name: Check persistent collection and bounded queue
+      ansible.builtin.assert:
+        that:
+          - vlagent_run is search('s6-setuidgid vlagent')
+          - vlagent_run is search('-httpListenAddr=127.0.0.1:9429')
+          - vlagent_run is search('-tmpDataPath=/var/db/vlagent')
+          - vlagent_run is search('-remoteWrite.url=http://192.0.2.10:9428/insert/native')
+          - vlagent_run is search('-remoteWrite.maxDiskUsagePerURL=1GiB')
+          - vlagent_run is search('-fileCollector.glob=/var/log/example/current')
+          - vlagent_run is search('-fileCollector.timeField=time')
+          - vlagent_run is search('-fileCollector.msgField=message')
+          - vlagent_run is search('-fileCollector.streamFields=host,job')
+          - vlagent_run is not search('/usr/sbin/daemon')
+          - vlagent_stream_fields == ['host', 'job']
+
+    - name: Configure log path with spaces, quotes, and backslashes
+      ansible.builtin.set_fact:
+        vlagent_file_glob: '/var/log/example "quoted"\path/current'
+
+    - name: Check log path quoting
+      ansible.builtin.assert:
+        that:
+          - >-
+            (lookup('template', '../roles/vlagent/templates/run.j2').splitlines()
+            | select('search', '-fileCollector.glob=') | first | trim | from_json)
+            == '-fileCollector.glob=' + vlagent_file_glob
+
+    - name: Configure source JSON field names
+      ansible.builtin.set_fact:
+        vlagent_time_field: timestamp
+        vlagent_msg_field: text
+
+    - name: Check custom source JSON field names
+      ansible.builtin.assert:
+        that:
+          - lookup('template', '../roles/vlagent/templates/run.j2') is search('-fileCollector.timeField=timestamp')
+          - lookup('template', '../roles/vlagent/templates/run.j2') is search('-fileCollector.msgField=text')

@@ -1,0 +1,14 @@
+#!/usr/local/bin/execlineb -P
+s6-setuidgid {{ vlagent_user }}
+fdmove -c 2 1
+/usr/local/bin/vlagent
+  -httpListenAddr={{ vlagent_listen_address }}
+  -tmpDataPath={{ vlagent_data_dir }}
+  -remoteWrite.url={{ vlagent_remote_write_url }}
+  -remoteWrite.maxDiskUsagePerURL={{ vlagent_max_disk_usage_per_url }}
+  -memory.allowedBytes={{ vlagent_memory_allowed_bytes }}
+  "-fileCollector.glob={{ vlagent_file_glob | replace('\\', '\\\\') | replace('"', '\\"') }}"
+  "-fileCollector.extraFields={{ vlagent_extra_fields | to_json | replace('\\', '\\\\') | replace('"', '\\"') }}"
+  -fileCollector.streamFields={{ vlagent_stream_fields | join(',') }}
+  "-fileCollector.timeField={{ vlagent_time_field | replace('\\', '\\\\') | replace('"', '\\"') }}"
+  "-fileCollector.msgField={{ vlagent_msg_field | replace('\\', '\\\\') | replace('"', '\\"') }}"
