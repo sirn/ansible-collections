@@ -97,7 +97,7 @@ Only implemented entry points are shipped, for example `main_freebsd.yml`,
 - `mysql` — MariaDB database server
 - [`nginx`](roles/nginx/README.md) — web server
 - `openssh` — OpenSSH server via pkg
-- `php` — PHP-FPM runtime
+- [`php`](roles/php/README.md) — PHP-FPM runtime
 - `postgresql` — PostgreSQL database server
 - `redis` — Redis key-value store
 - `sanoid` — ZFS snapshot management

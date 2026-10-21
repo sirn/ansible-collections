@@ -13,6 +13,17 @@ pm.start_servers = {{php_fpm_start_servers}}
 pm.min_spare_servers = {{php_fpm_min_spare_servers}}
 pm.max_spare_servers = {{php_fpm_max_spare_servers}}
 pm.max_requests = {{php_fpm_max_requests}}
+
+php_admin_flag[session.upload_progress.enabled] = off
+{% if (php_fpm_version | regex_replace('^php', '') | int) >= 85 %}
+php_admin_flag[fatal_error_backtraces] = off
+{% endif %}
+php_admin_value[post_max_size] = {{php_post_max_size}}
+php_admin_value[upload_max_filesize] = {{php_upload_max_filesize}}
+php_admin_value[max_input_nesting_level] = {{php_max_input_nesting_level}}
+php_admin_value[max_input_vars] = {{php_max_input_vars}}
+php_admin_value[max_multipart_body_parts] = {{php_max_multipart_body_parts}}
+php_admin_value[max_file_uploads] = {{php_max_file_uploads}}
 {% if php_fpm_config %}
 
 {{php_fpm_config}}

@@ -1,0 +1,70 @@
+---
+- name: test PHP security configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../roles/php/defaults/main.yml
+  tasks:
+    - name: render supported PHP configurations
+      ansible.builtin.set_fact:
+        php_test_rendered_pool: "{{ lookup('template', '../roles/php/templates/www.conf.j2') }}"
+        php_test_rendered_ini: "{{ lookup('template', '../roles/php/templates/php.ini.j2') }}"
+      vars:
+        php_fpm_version: "{{ item }}"
+        php_fpm_config: |
+          pm.status_path = /status
+      loop:
+        - php82
+        - php83
+        - php84
+        - php85
+      register: php_test_versions
+
+    - name: check shared defaults survive custom pool configuration
+      ansible.builtin.assert:
+        that:
+          - "'php_admin_flag[session.upload_progress.enabled] = off' in php_test_pool"
+          - "'php_admin_value[post_max_size] = 144M' in php_test_pool"
+          - "'php_admin_value[upload_max_filesize] = 128M' in php_test_pool"
+          - "'php_admin_value[max_input_nesting_level] = 32' in php_test_pool"
+          - "'php_admin_value[max_input_vars] = 1000' in php_test_pool"
+          - "'php_admin_value[max_multipart_body_parts] = 1020' in php_test_pool"
+          - "'php_admin_value[max_file_uploads] = 20' in php_test_pool"
+          - "'pm.status_path = /status' in php_test_pool"
+          - "'pm.max_requests = 1000' in php_test_pool"
+          - "'session.upload_progress.enabled = Off' in php_test_ini"
+          - "'max_input_nesting_level = 32' in php_test_ini"
+          - "'max_input_vars = 1000' in php_test_ini"
+          - "'max_multipart_body_parts = 1020' in php_test_ini"
+          - "'max_file_uploads = 20' in php_test_ini"
+          - "('fatal_error_backtraces' in php_test_pool) == (item.item == 'php85')"
+          - "('fatal_error_backtraces' in php_test_ini) == (item.item == 'php85')"
+      vars:
+        php_test_pool: "{{ item.ansible_facts.php_test_rendered_pool }}"
+        php_test_ini: "{{ item.ansible_facts.php_test_rendered_ini }}"
+      loop: "{{ php_test_versions.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: check configurable input limits
+      ansible.builtin.assert:
+        that:
+          - "'php_admin_value[post_max_size] = 32M' in php_test_pool_override"
+          - "'php_admin_value[upload_max_filesize] = 24M' in php_test_pool_override"
+          - "'php_admin_value[max_input_nesting_level] = 16' in php_test_pool_override"
+          - "'php_admin_value[max_input_vars] = 200' in php_test_pool_override"
+          - "'php_admin_value[max_file_uploads] = 4' in php_test_pool_override"
+          - "'php_admin_value[max_multipart_body_parts] = 204' in php_test_pool_override"
+          - "'max_input_nesting_level = 16' in php_test_ini_override"
+          - "'max_input_vars = 200' in php_test_ini_override"
+          - "'max_file_uploads = 4' in php_test_ini_override"
+          - "'max_multipart_body_parts = 204' in php_test_ini_override"
+      vars:
+        php_post_max_size: 32M
+        php_upload_max_filesize: 24M
+        php_max_input_nesting_level: 16
+        php_max_input_vars: 200
+        php_max_file_uploads: 4
+        php_test_pool_override: "{{ lookup('template', '../roles/php/templates/www.conf.j2') }}"
+        php_test_ini_override: "{{ lookup('template', '../roles/php/templates/php.ini.j2') }}"

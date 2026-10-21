@@ -28,6 +28,9 @@ expose_php = On
 
 max_execution_time = {{php_max_execution_time}}
 max_input_time = {{php_max_input_time}}
+max_input_nesting_level = {{php_max_input_nesting_level}}
+max_input_vars = {{php_max_input_vars}}
+max_multipart_body_parts = {{php_max_multipart_body_parts}}
 memory_limit = {{php_memory_limit}}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -37,6 +40,9 @@ memory_limit = {{php_memory_limit}}
 error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
 display_errors = Off
 display_startup_errors = Off
+{% if (php_fpm_version | regex_replace('^php', '') | int) >= 85 %}
+fatal_error_backtraces = Off
+{% endif %}
 log_errors = On
 log_errors_max_len = 1024
 ignore_repeated_errors = Off
@@ -72,7 +78,7 @@ enable_dl = Off
 
 file_uploads = On
 upload_max_filesize = {{php_upload_max_filesize}}
-max_file_uploads = 20
+max_file_uploads = {{php_max_file_uploads}}
 
 ;;;;;;;;;;;;;;;;;;
 ; Fopen wrappers ;
