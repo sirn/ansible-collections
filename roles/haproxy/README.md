@@ -42,6 +42,14 @@ haproxy_backends:
       - "send-proxy-v2"
 ```
 
+#### haproxy_extra_config
+
+```yaml
+haproxy_extra_config: ""
+```
+
+Only used when `haproxy_template` is set to `default.conf.j2`. Additional top-level configuration appended after the generated sections, such as a dedicated SPOE agent backend.
+
 #### haproxy_frontends
 
 ```yaml
@@ -142,6 +150,19 @@ haproxy_resolvers:
     timeout_retry: 1s
     hold_valid: 10s
 ```
+
+#### haproxy_spoe_configs
+
+```yaml
+haproxy_spoe_configs: []
+```
+
+List of SPOE message configuration templates installed before HAProxy configuration validation:
+
+- `src` — Jinja2 template path
+- `dest` — destination path on the host; the parent directory must exist
+
+Template changes notify the HAProxy restart handler. Configure frontend filters, message routing, and agent backends separately.
 
 #### haproxy_stats
 

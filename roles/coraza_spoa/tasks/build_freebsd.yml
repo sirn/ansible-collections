@@ -1,0 +1,62 @@
+---
+- name: Build pinned Coraza agent on host
+  become: true
+  block:
+    - name: Install Coraza build tools
+      community.general.pkgng:
+        name:
+          - "{{ coraza_spoa_go_package }}"
+          - gtar
+        state: present
+
+    - name: Ensure Coraza build directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ coraza_spoa_build_dir }}"
+        - "{{ coraza_spoa_binary | dirname }}"
+
+    - name: Download verified Coraza source
+      ansible.builtin.get_url:
+        url: "{{ coraza_spoa_source_url }}"
+        dest: "{{ coraza_spoa_build_dir }}/source.tar.gz"
+        checksum: "sha256:{{ coraza_spoa_source_sha256 }}"
+        timeout: 60
+        mode: "0644"
+
+    - name: Extract verified Coraza source
+      ansible.builtin.unarchive:
+        src: "{{ coraza_spoa_build_dir }}/source.tar.gz"
+        dest: "{{ coraza_spoa_build_dir }}"
+        remote_src: true
+
+    # The source go.mod and go.sum also pin Coraza and the embedded CRS.
+    - name: Compile static Coraza agent
+      ansible.builtin.command:
+        argv:
+          - "{{ coraza_spoa_go_binary }}"
+          - build
+          - -mod=readonly
+          - -trimpath
+          - -buildvcs=false
+          - "-ldflags=-s -w -X main.version={{ coraza_spoa_version }}"
+          - -o
+          - "{{ coraza_spoa_build_dir }}/coraza-spoa"
+          - .
+        chdir: "{{ coraza_spoa_build_dir }}/coraza-spoa-{{ coraza_spoa_revision }}"
+      environment:
+        GOTOOLCHAIN: local
+        CGO_ENABLED: "0"
+        GOCACHE: "{{ coraza_spoa_build_dir }}/go-cache"
+        GOPATH: "{{ coraza_spoa_build_dir }}/go"
+      timeout: 600
+      changed_when: true
+
+    - name: Cache completed Coraza build
+      ansible.builtin.copy:
+        src: "{{ coraza_spoa_build_dir }}/coraza-spoa"
+        dest: "{{ coraza_spoa_binary }}"
+        remote_src: true
+        mode: "0555"

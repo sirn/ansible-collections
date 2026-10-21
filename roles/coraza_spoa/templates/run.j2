@@ -1,0 +1,8 @@
+#!/usr/local/bin/execlineb -P
+/usr/local/bin/umask 007
+foreground { /usr/bin/install -d -o {{ coraza_spoa_user }} -g {{ coraza_spoa_group }} -m 0750 {{ coraza_spoa_socket | dirname }} }
+s6-setuidgid {{ coraza_spoa_user }}
+fdmove -c 2 1
+{{ coraza_spoa_binary }}
+  -config {{ coraza_spoa_config_dir }}/coraza-spoa.yml
+  -metrics-addr {{ coraza_spoa_metrics_address }}

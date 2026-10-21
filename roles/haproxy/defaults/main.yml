@@ -14,6 +14,10 @@ haproxy_logger: |
 
 haproxy_template: default.conf.j2
 
+# Additional top-level sections, such as a local SPOE agent backend.
+haproxy_extra_config: ""
+haproxy_spoe_configs: []
+
 haproxy_user: www
 
 ## Extra configurations for `default.conf.j2' template

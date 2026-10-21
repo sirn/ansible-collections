@@ -1,0 +1,35 @@
+---
+- name: Rescan coraza_spoa s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: coraza_spoa_rescan_result
+  changed_when: coraza_spoa_rescan_result is succeeded
+  failed_when: coraza_spoa_rescan_result is not succeeded
+
+- name: Wait for coraza_spoa supervision
+  become: true
+  ansible.builtin.command: "s6-svok {{ coraza_spoa_item }}"
+  loop_control:
+    loop_var: coraza_spoa_item
+  with_items:
+    - /var/service/coraza-spoa
+    - /var/service/coraza-spoa/log
+  register: coraza_spoa_supervision
+  until: coraza_spoa_supervision is succeeded
+  retries: 10
+  delay: 1
+  changed_when: false
+
+- name: Restart coraza_spoa
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/coraza-spoa
+  register: coraza_spoa_restart_result
+  changed_when: coraza_spoa_restart_result is succeeded
+  failed_when: coraza_spoa_restart_result is not succeeded
+
+- name: Restart coraza_spoa logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/coraza-spoa/log
+  register: coraza_spoa_logger_restart_result
+  changed_when: coraza_spoa_logger_restart_result is succeeded
+  failed_when: coraza_spoa_logger_restart_result is not succeeded

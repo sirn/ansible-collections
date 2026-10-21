@@ -16,6 +16,14 @@ vmagent_data_dir: /var/db/vmagent
 
 Directory where the persistent remote-write queue is stored (`-remoteWrite.tmpDataPath`).
 
+#### vmagent_extra_scrape_configs
+
+```yaml
+vmagent_extra_scrape_configs: []
+```
+
+Additional Prometheus scrape jobs appended to `vmagent_scrape_configs`. Use this list to add optional service targets without replacing the main job list. The same validation and credential protections apply.
+
 #### vmagent_global
 
 ```yaml

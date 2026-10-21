@@ -21,6 +21,7 @@ vmagent_global:
     host: "{{ ansible_hostname }}"
 
 vmagent_scrape_configs: []
+vmagent_extra_scrape_configs: []
 
 # S6 supervision is disabled by default. Enable it to supervise this service.
 s6: false

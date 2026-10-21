@@ -1,1 +1,1 @@
-{{ {"global": vmagent_global, "scrape_configs": vmagent_scrape_configs} | to_nice_yaml(indent=2) }}
+{{ {"global": vmagent_global, "scrape_configs": vmagent_scrape_configs + vmagent_extra_scrape_configs} | to_nice_yaml(indent=2) }}

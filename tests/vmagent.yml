@@ -43,3 +43,17 @@
           - vmagent_scrape.global.external_labels.host == 'testhost'
           - vmagent_scrape.scrape_configs[0].job_name == 'node'
           - vmagent_scrape.scrape_configs[0].static_configs[0].targets == ['127.0.0.1:9100']
+
+    - name: set optional scrape jobs
+      ansible.builtin.set_fact:
+        vmagent_extra_scrape_configs:
+          - job_name: extra
+            static_configs:
+              - targets: ['127.0.0.1:9999']
+
+    - name: check optional scrape jobs are appended
+      ansible.builtin.assert:
+        that:
+          - vmagent_extra_test.scrape_configs | map(attribute='job_name') | list == ['node', 'extra']
+      vars:
+        vmagent_extra_test: "{{ lookup('template', '../roles/vmagent/templates/scrape.yml.j2') | from_yaml }}"

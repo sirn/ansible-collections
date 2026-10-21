@@ -1,0 +1,67 @@
+---
+- name: Test Coraza detection configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load Coraza defaults
+      ansible.builtin.include_vars: ../roles/coraza_spoa/defaults/main.yml
+
+    - name: Render agent configuration and command
+      ansible.builtin.set_fact:
+        coraza_test_config: "{{ lookup('template', '../roles/coraza_spoa/templates/coraza-spoa.yml.j2') | from_yaml }}"
+        coraza_test_run: "{{ lookup('template', '../roles/coraza_spoa/templates/run.j2') }}"
+
+    - name: Check private listeners and foreground supervision
+      ansible.builtin.assert:
+        that:
+          - coraza_test_config.bind == 'unix:///var/run/coraza-spoa/coraza-spoa.sock'
+          - coraza_test_config.log_file == '/dev/stdout'
+          - coraza_test_config.log_format == 'json'
+          - coraza_test_run is search('umask 007')
+          - coraza_test_run is search('s6-setuidgid coraza-spoa')
+          - coraza_test_run is search('-metrics-addr 127.0.0.1:9000')
+          - coraza_test_run is not search('/usr/sbin/daemon')
+          - coraza_spoa_revision | length == 40
+          - coraza_spoa_source_sha256 | length == 64
+
+    - name: Check generic logger defaults
+      ansible.builtin.assert:
+        that:
+          - coraza_spoa_logger is search('s6-log -b n10 s1000000 t')
+          - coraza_spoa_logger is search('/var/log/coraza-spoa/')
+          - coraza_spoa_logger is not search('python|pipeline')
+
+    - name: Check detection and privacy controls in each policy
+      ansible.builtin.assert:
+        that:
+          - item.response_check == false
+          - item.log_file == '/dev/stdout'
+          - item.log_format == 'json'
+          - "'SecRuleEngine DetectionOnly' in item.directives"
+          - "'SecAuditEngine Off' in item.directives"
+          - "'SecDebugLogLevel 0' in item.directives"
+          - "'SecResponseBodyAccess Off' in item.directives"
+          - "'SecRequestBodyLimit 13107200' in item.directives"
+          - "'Include @owasp_crs/*.conf' in item.directives"
+      loop: "{{ coraza_test_config.applications }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Set caller-defined applications
+      ansible.builtin.set_fact:
+        coraza_spoa_applications:
+          - name: sample
+            body_access: false
+          - name: sample-body
+            body_access: true
+
+    - name: Render policies with caller-defined applications
+      ansible.builtin.set_fact:
+        coraza_test_body_off: "{{ lookup('template', '../roles/coraza_spoa/templates/coraza-spoa.yml.j2') | from_yaml }}"
+
+    - name: Check body access follows each application
+      ansible.builtin.assert:
+        that:
+          - "'SecRequestBodyAccess Off' in coraza_test_body_off.applications[0].directives"
+          - "'SecRequestBodyAccess On' in coraza_test_body_off.applications[1].directives"

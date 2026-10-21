@@ -29,6 +29,18 @@
   with_items:
     - "{{ haproxy_prefix }}/config"
 
+- name: Configure HAProxy SPOE messages
+  become: true
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop: "{{ haproxy_spoe_configs }}"
+  notify:
+    - restart haproxy
+  tags:
+    - haproxy_config
+
 - name: configure haproxy.conf
   become: true
   ansible.builtin.template:
@@ -39,6 +51,21 @@
     validate: "haproxy -c -f %s"
   notify:
     - restart haproxy
+  tags:
+    - haproxy_config
+
+- name: Validate HAProxy with updated SPOE messages
+  become: true
+  ansible.builtin.command:
+    argv:
+      - haproxy
+      - -c
+      - -f
+      - "{{ haproxy_prefix }}/config/haproxy.conf"
+  changed_when: false
+  when:
+    - haproxy_spoe_configs | length > 0
+    - not ansible_check_mode
   tags:
     - haproxy_config
 

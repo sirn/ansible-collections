@@ -105,3 +105,6 @@ backend {{ backend.name }}
 backend default-http
     mode         http
     http-request return status 404 content-type "text/plain" string "backend not found"
+{% if haproxy_extra_config %}
+{{ haproxy_extra_config | trim }}
+{% endif %}

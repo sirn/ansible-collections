@@ -1,0 +1,25 @@
+---
+coraza_spoa_revision: 1c7f567f2dbde725a921fc570289bc6774759b70
+coraza_spoa_version: 0.9.0
+coraza_spoa_source_sha256: 9a1b5b347f3d4a1e4bb36f7d056659a7898ce47ebda37eeab2c6c62d823be666
+coraza_spoa_source_url: "https://codeload.github.com/corazawaf/coraza-spoa/tar.gz/{{ coraza_spoa_revision }}"
+coraza_spoa_build_dir: "/var/cache/coraza-spoa-{{ coraza_spoa_revision }}"
+coraza_spoa_binary: "/usr/local/libexec/coraza-spoa/{{ coraza_spoa_revision }}/coraza-spoa"
+coraza_spoa_go_package: go126
+coraza_spoa_go_binary: /usr/local/bin/go126
+coraza_spoa_user: coraza-spoa
+coraza_spoa_group: www
+coraza_spoa_socket: /var/run/coraza-spoa/coraza-spoa.sock
+coraza_spoa_metrics_address: 127.0.0.1:9000
+coraza_spoa_config_dir: /usr/local/etc/coraza-spoa
+coraza_spoa_body_limit: 13107200
+coraza_spoa_applications:
+  - name: default
+    body_access: true
+
+coraza_spoa_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/coraza-spoa/
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

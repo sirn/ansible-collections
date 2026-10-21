@@ -1,0 +1,25 @@
+bind: unix://{{ coraza_spoa_socket }}
+log_level: info
+log_file: /dev/stdout
+log_format: json
+applications:
+{% for application in coraza_spoa_applications %}
+  - name: {{ application.name }}
+    response_check: false
+    transaction_ttl_ms: 1000
+    log_level: info
+    log_file: /dev/stdout
+    log_format: json
+    directives: |
+      Include @coraza.conf-recommended
+      SecRuleEngine DetectionOnly
+      SecAuditEngine Off
+      SecDebugLogLevel 0
+      SecRequestBodyAccess {{ 'On' if application.body_access else 'Off' }}
+      SecRequestBodyLimit {{ coraza_spoa_body_limit }}
+      SecRequestBodyNoFilesLimit {{ coraza_spoa_body_limit }}
+      SecRequestBodyInMemoryLimit {{ coraza_spoa_body_limit }}
+      SecResponseBodyAccess Off
+      Include @crs-setup.conf.example
+      Include @owasp_crs/*.conf
+{% endfor %}

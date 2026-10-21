@@ -1,0 +1,96 @@
+---
+- name: Inspect cached Coraza binary
+  become: true
+  ansible.builtin.stat:
+    path: "{{ coraza_spoa_binary }}"
+  register: coraza_spoa_cached_binary
+
+- name: Report required Coraza build
+  ansible.builtin.debug:
+    msg: The cached build is absent. Run without check mode to build it on the host.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - not coraza_spoa_cached_binary.stat.exists
+
+- name: Build Coraza agent
+  ansible.builtin.include_tasks: build_freebsd.yml
+  when:
+    - not ansible_check_mode
+    - not coraza_spoa_cached_binary.stat.exists
+
+- name: Create Coraza service user
+  become: true
+  ansible.builtin.user:
+    name: "{{ coraza_spoa_user }}"
+    group: "{{ coraza_spoa_group }}"
+    home: /nonexistent
+    create_home: false
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Ensure Coraza directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ coraza_spoa_config_dir }}"
+    - /usr/local/libexec
+    - /var/log/coraza-spoa
+    - /var/service/coraza-spoa
+    - /var/service/coraza-spoa/log
+
+- name: Ensure private Coraza socket directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ coraza_spoa_socket | dirname }}"
+    state: directory
+    owner: "{{ coraza_spoa_user }}"
+    group: "{{ coraza_spoa_group }}"
+    mode: "0750"
+
+- name: Configure Coraza agent
+  become: true
+  ansible.builtin.template:
+    src: coraza-spoa.yml.j2
+    dest: "{{ coraza_spoa_config_dir }}/coraza-spoa.yml"
+    mode: "0644"
+    validate: "{{ coraza_spoa_binary }} -validate -config %s"
+  when: not ansible_check_mode or coraza_spoa_cached_binary.stat.exists
+  notify:
+    - Restart coraza_spoa
+
+- name: Install Coraza log service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/coraza-spoa/log/run
+    mode: "0555"
+    content: "{{ coraza_spoa_logger }}"
+  notify:
+    - Rescan coraza_spoa s6
+    - Wait for coraza_spoa supervision
+    - Restart coraza_spoa logger
+
+- name: Install Coraza service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/coraza-spoa/run
+    mode: "0555"
+  notify:
+    - Rescan coraza_spoa s6
+    - Wait for coraza_spoa supervision
+    - Restart coraza_spoa
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Coraza socket
+  become: true
+  ansible.builtin.wait_for:
+    path: "{{ coraza_spoa_socket }}"
+    timeout: 30
+  when: not ansible_check_mode

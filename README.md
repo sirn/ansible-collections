@@ -95,7 +95,7 @@ that use s6 supervision:
 | `varnish_ncsa_config` | Replace only the Varnish access-log service and logger |
 | `nginx_config` | Validate and replace nginx configuration |
 | `php_config` | Validate and replace the PHP-FPM pool configuration |
-| `haproxy_config` | Validate and replace HAProxy configuration |
+| `haproxy_config` | Validate and replace HAProxy configuration and SPOE messages |
 | `mysql_tools` | Install Python database dependencies |
 | `mysql_users` | Manage users declared in `mysql_databases` |
 | `sanoidconfig` | Replace Sanoid configuration and ensure state directory |
@@ -140,6 +140,7 @@ single implementation keep their tasks in `tasks/main.yml`.
 
 | Role | Platforms | Description |
 |------|-----------|-------------|
+| [`coraza_spoa`](roles/coraza_spoa/README.md) | FreeBSD | Detection-only WAF agent for HAProxy |
 | [`dehydrated`](roles/dehydrated/README.md) | FreeBSD, OpenBSD | Let's Encrypt certificate provisioning |
 | [`dhparam`](roles/dhparam/README.md) | FreeBSD | Mozilla ffdhe2048 DH parameter file |
 | [`dnsmasq`](roles/dnsmasq/README.md) | FreeBSD | Forwarding DNS resolver with split-horizon records |
