@@ -1,19 +1,43 @@
 # varnish_exporter
 
-Install and configure Varnish Exporter for cache metrics.
+Install and configure [Varnish Exporter](https://github.com/jonnenauha/prometheus_varnish_exporter) for cache metrics.
 
 ## Supported platforms
 
-- FreeBSD with s6 supervision (`s6: true`).
+- FreeBSD with [s6 supervision](../s6/README.md) (`s6: true`)
 
-The `s6` role must be configured on the host.
+## Variables
 
-## Configuration
+#### varnish_exporter_instance
 
-`varnish_exporter_listen_address` defaults to `127.0.0.1:9131`.
-`varnish_exporter_instance` defaults to
-`{{ varnish_prefix }}/data/{{ ansible_hostname }}`.
+```yaml
+varnish_exporter_instance: "{{ varnish_prefix }}/data/{{ ansible_hostname }}"
+```
 
-The exporter runs as `varnish` and reads counters with
-`/usr/local/bin/varnishstat`. That user needs access to the instance's
-shared-memory counters.
+Varnish instance directory passed to `varnishstat -n`.
+
+#### varnish_exporter_listen_address
+
+```yaml
+varnish_exporter_listen_address: 127.0.0.1:9131
+```
+
+Address and port for the exporter HTTP listener.
+
+#### varnish_exporter_logger
+
+```yaml
+varnish_exporter_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/varnish_exporter/
+```
+
+Configure the Varnish Exporter logger. See [s6-log](https://skarnet.org/software/s6/s6-log.html).
+
+#### varnish_exporter_user
+
+```yaml
+varnish_exporter_user: varnish
+```
+
+OS user to run the exporter as. The user reads counters with `/usr/local/bin/varnishstat` and needs access to the instance's shared-memory counters.

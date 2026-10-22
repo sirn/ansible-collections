@@ -55,6 +55,8 @@ hosts with `s6: true`:
 | `haproxy_config` | Validate and replace HAProxy configuration |
 | `mysql_tools` | Install Python database dependencies |
 | `mysql_users` | Manage users declared in `mysql_databases` |
+| `sanoidconfig` | Replace Sanoid configuration and ensure state directory |
+| `sanoidhooks` | Generate Sanoid dataset and template hook scripts |
 
 Configuration changes notify the role's service handlers. These tags do not
 install service packages or change supervision. Database dependencies must
@@ -79,29 +81,29 @@ Only implemented entry points are shipped, for example `main_freebsd.yml`,
 
 ### Platform configuration
 
-- `hardening` — harden a host (SSH, sudo, sysctl, accounting)
-- `ntpd` — configure the base ntpd time synchronization on FreeBSD
-- `openntpd` — configure OpenNTPd on FreeBSD or OpenBSD
-- `pf` — configure the pf firewall
-- `racct` — enable FreeBSD resource limits
-- `tuning` — tune FreeBSD kernel and boot parameters
-- `s6` — install and enable the s6 supervisor on FreeBSD
+- [`hardening`](roles/hardening/README.md) — harden a host (SSH, sudo, sysctl, accounting)
+- [`ntpd`](roles/ntpd/README.md) — configure the base ntpd time synchronization on FreeBSD
+- [`openntpd`](roles/openntpd/README.md) — configure OpenNTPd on FreeBSD or OpenBSD
+- [`pf`](roles/pf/README.md) — configure the pf firewall
+- [`racct`](roles/racct/README.md) — enable FreeBSD resource limits
+- [`tuning`](roles/tuning/README.md) — tune FreeBSD kernel and boot parameters
+- [`s6`](roles/s6/README.md) — install and enable the s6 supervisor on FreeBSD
 
 ### Services (s6-supervised on FreeBSD)
 
-- `dehydrated` — Let's Encrypt certificate provisioning
-- `duplicity` — encrypted periodic backups
-- `haproxy` — HAProxy load balancer
-- `hitch` — TLS termination proxy
-- `mrtg` — network traffic monitoring
-- `mysql` — MariaDB database server
+- [`dehydrated`](roles/dehydrated/README.md) — Let's Encrypt certificate provisioning
+- [`duplicity`](roles/duplicity/README.md) — encrypted periodic backups
+- [`haproxy`](roles/haproxy/README.md) — HAProxy load balancer
+- [`hitch`](roles/hitch/README.md) — TLS termination proxy
+- [`mrtg`](roles/mrtg/README.md) — network traffic monitoring
+- [`mysql`](roles/mysql/README.md) — MariaDB database server
 - [`nginx`](roles/nginx/README.md) — web server
-- `openssh` — OpenSSH server via pkg
+- [`openssh`](roles/openssh/README.md) — OpenSSH server via pkg
 - [`php`](roles/php/README.md) — PHP-FPM runtime
-- `postgresql` — PostgreSQL database server
-- `redis` — Redis key-value store
-- `sanoid` — ZFS snapshot management
-- `varnish` — Varnish cache
+- [`postgresql`](roles/postgresql/README.md) — PostgreSQL database server
+- [`redis`](roles/redis/README.md) — Redis key-value store
+- [`sanoid`](roles/sanoid/README.md) — ZFS snapshot management
+- [`varnish`](roles/varnish/README.md) — Varnish cache
 - [`victoria_metrics`](roles/victoria_metrics/README.md) — single-node metrics storage
 - [`victoria_logs`](roles/victoria_logs/README.md) — single-node log storage
 - [`vlagent`](roles/vlagent/README.md) — file collection and queued log delivery

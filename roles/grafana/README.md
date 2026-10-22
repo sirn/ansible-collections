@@ -1,41 +1,65 @@
 # grafana
 
-Install and configure Grafana dashboards and datasource provisioning.
+Install and configure [Grafana](https://grafana.com/) dashboards and datasource provisioning.
 
 ## Supported platforms
 
-- FreeBSD with s6 supervision (`s6: true`).
+- FreeBSD with [s6 supervision](../s6/README.md) (`s6: true`)
 
-The `s6` role must be configured on the host.
+## Variables
 
-## Configuration
+#### grafana_admin_password
 
-Required inputs:
+```yaml
+grafana_admin_password: ""
+```
 
-- `grafana_domain`: public dashboard hostname.
-- `grafana_root_url`: HTTPS dashboard URL.
-- `grafana_admin_password`: initial admin password from the caller's secret store.
+Required. Initial admin password from the caller's secret store. The initial admin password applies only to a new Grafana database. Passwords cannot contain newlines or triple double quotes. The configuration task suppresses output and diffs.
 
-The HTTP listener defaults to `127.0.0.1:3000`. Configure TLS in the
-caller's reverse proxy. Anonymous access, sign-up, and auth proxy are disabled.
+#### grafana_admin_user
 
-`grafana_dashboards` is a list of `{ src: controller_file, filename: name.json }`.
-Filenames can contain letters, digits, underscores, and hyphens.
-The role owns `/usr/local/etc/grafana/dashboards` and removes JSON files
-not in that list. Data and plugins are stored in `grafana_data_dir`,
-which defaults to `/var/db/grafana`.
+```yaml
+grafana_admin_user: admin
+```
 
-The initial admin password applies only to a new Grafana database.
-Passwords cannot contain newlines or triple double quotes.
-The configuration task suppresses output and diffs.
+Initial Grafana administrator username.
 
-## Datasources
+#### grafana_allow_loading_unsigned_plugins
 
-`grafana_datasources` defaults to `[]`. Supply native Grafana datasource
-definitions, including `jsonData` and `secureJsonData`. The list is written
-unchanged to `provisioning/datasources/default.yml` with `apiVersion: 1`.
-Supply credentials through the caller's secret store. Task output and diffs
-are suppressed.
+```yaml
+grafana_allow_loading_unsigned_plugins: []
+```
+
+List of exact plugin IDs permitted to load unsigned. Signature checks remain enabled for other plugins. Install plugins separately (for example with [`grafana_victorialogs_plugin`](../grafana_victorialogs_plugin/README.md)).
+
+#### grafana_dashboards
+
+```yaml
+grafana_dashboards: []
+```
+
+List of dashboard files to provision:
+
+- `src` — path to the dashboard JSON file on the controller
+- `filename` — destination JSON basename (letters, digits, underscores, and hyphens)
+
+The role owns `/usr/local/etc/grafana/dashboards` and removes JSON files not in this list.
+
+#### grafana_data_dir
+
+```yaml
+grafana_data_dir: /var/db/grafana
+```
+
+Directory where Grafana stores its database, data, and plugins.
+
+#### grafana_datasources
+
+```yaml
+grafana_datasources: []
+```
+
+Native Grafana datasource definitions, including `jsonData` and `secureJsonData`. The list is written unchanged to `provisioning/datasources/default.yml` with `apiVersion: 1`. Supply credentials through the caller's secret store. Task output and diffs are suppressed.
 
 Example:
 
@@ -50,12 +74,52 @@ grafana_datasources:
     editable: false
 ```
 
-The role manages `default.yml` and removes its previous `victoriametrics.yml`
-provisioning file. It does not remove other provisioning files or stored
-datasources. An empty list does not delete existing datasources from Grafana.
+#### grafana_domain
 
-## Plugins
+```yaml
+grafana_domain: ""
+```
 
-Install plugins separately. `grafana_allow_loading_unsigned_plugins`
-defaults to `[]`. Set it to the exact plugin IDs permitted to load unsigned.
-Signature checks remain enabled for other plugins.
+Required. Public dashboard hostname.
+
+#### grafana_http_address
+
+```yaml
+grafana_http_address: 127.0.0.1
+```
+
+HTTP listen address. Configure TLS in the caller's reverse proxy. Anonymous access, sign-up, and auth proxy are disabled.
+
+#### grafana_http_port
+
+```yaml
+grafana_http_port: 3000
+```
+
+HTTP listen port.
+
+#### grafana_logger
+
+```yaml
+grafana_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/grafana/
+```
+
+Configure the Grafana logger. See [s6-log](https://skarnet.org/software/s6/s6-log.html).
+
+#### grafana_root_url
+
+```yaml
+grafana_root_url: ""
+```
+
+Required. Full HTTPS URL used to access Grafana.
+
+#### grafana_user
+
+```yaml
+grafana_user: grafana
+```
+
+OS user to run Grafana as.
