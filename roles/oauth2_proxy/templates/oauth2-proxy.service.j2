@@ -1,0 +1,42 @@
+[Unit]
+Description=oauth2-proxy container (instance {{ oauth2_proxy_instance_name }})
+{% for dep in oauth2_proxy_instance_depends_on %}
+Requires={{ dep }}
+{% endfor %}
+{% for dep in oauth2_proxy_instance_depends_on %}
+After={{ dep }}
+{% endfor %}
+{% if oauth2_proxy_container_runtime_api_service | default('') | length > 0 %}
+Requires={{ oauth2_proxy_container_runtime_api_service }}.service
+After={{ oauth2_proxy_container_runtime_api_service }}.service
+{% endif %}
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-{{ oauth2_proxy_container_runtime_binary }} rm -f {{ oauth2_proxy_instance_container_name }}
+ExecStart={{ oauth2_proxy_container_runtime_binary }} run --rm \
+  --name {{ oauth2_proxy_instance_container_name }} \
+{% if oauth2_proxy_instance_pod is defined and oauth2_proxy_instance_pod | length > 0 %}
+  --pod {{ oauth2_proxy_instance_pod }} \
+{% elif oauth2_proxy_container_network | length > 0 %}
+  --network {{ oauth2_proxy_container_network }} \
+{% endif %}
+  --env-file {{ oauth2_proxy_instance_data_dir }}/.env \
+  --memory {{ oauth2_proxy_container_memory }} \
+  --cpus {{ oauth2_proxy_container_cpus }} \
+  --pids-limit {{ oauth2_proxy_container_pids_limit }} \
+{% for option in oauth2_proxy_container_security_options %}
+  --security-opt {{ option }} \
+{% endfor %}
+{% for capability in oauth2_proxy_container_cap_drop %}
+  --cap-drop {{ capability }} \
+{% endfor %}
+  {{ oauth2_proxy_container_image }} \
+  --http-address {{ oauth2_proxy_instance_listen_address if ':' not in oauth2_proxy_instance_listen_address else '[' ~ oauth2_proxy_instance_listen_address ~ ']' }}:{{ oauth2_proxy_instance_listen_port }}
+ExecStop={{ oauth2_proxy_container_runtime_binary }} stop {{ oauth2_proxy_instance_container_name }}
+
+[Install]
+WantedBy=multi-user.target

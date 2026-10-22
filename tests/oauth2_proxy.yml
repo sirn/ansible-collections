@@ -1,0 +1,112 @@
+---
+- name: test oauth2_proxy templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load oauth2_proxy defaults
+      ansible.builtin.include_vars: ../roles/oauth2_proxy/defaults/main.yml
+
+    - name: check default deployment method
+      ansible.builtin.assert:
+        that:
+          - not oauth2_proxy_deploy_container
+          - >-
+            oauth2_proxy_container_image is search(
+            '^quay.io/oauth2-proxy/oauth2-proxy:v')
+          - oauth2_proxy_container_service_name_prefix == 'oauth2-proxy'
+
+    - name: set shared environment values
+      ansible.builtin.set_fact:
+        oauth2_proxy_container_runtime_binary: /usr/bin/podman
+        oauth2_proxy_container_runtime_api_service: podman-api
+        oauth2_proxy_env:
+          OAUTH2_PROXY_SCOPE: openid email profile
+
+    - name: set instance values
+      ansible.builtin.set_fact:
+        oauth2_proxy_instance_name: dashboard
+        oauth2_proxy_instance_pod: ""
+        oauth2_proxy_instance_container_name: oauth2-proxy-dashboard
+        oauth2_proxy_instance_data_dir: /var/lib/oauth2-proxy/dashboard
+        oauth2_proxy_instance_depends_on:
+          - podman-api.service
+        oauth2_proxy_instance_listen_address: 127.0.0.1
+        oauth2_proxy_instance_listen_port: 4180
+        oauth2_proxy_env_secret: >-
+          {{ {
+               'OAUTH2_PROXY_PROVIDER': oauth2_proxy_provider,
+               'OAUTH2_PROXY_EMAIL_DOMAINS': oauth2_proxy_email_domain,
+               'OAUTH2_PROXY_SKIP_PROVIDER_BUTTON':
+                 oauth2_proxy_skip_provider_button | lower,
+               'OAUTH2_PROXY_PASS_HOST_HEADER':
+                 oauth2_proxy_pass_host_header | lower,
+             }
+             | combine(oauth2_proxy_env)
+             | combine({
+                 'OAUTH2_PROXY_CLIENT_ID': 'dashboard-client',
+                 'OAUTH2_PROXY_CLIENT_SECRET': 'dashboard-secret',
+                 'OAUTH2_PROXY_COOKIE_SECRET': 'cookie-secret',
+                 'OAUTH2_PROXY_REDIRECT_URL':
+                   'https://dashboard.example.com/oauth2/callback',
+                 'OAUTH2_PROXY_UPSTREAMS': 'http://127.0.0.1:3000',
+               })
+             | combine({'OAUTH2_PROXY_OIDC_ISSUER_URL': 'https://auth.example.com'}) }}
+
+    - name: render environment file
+      ansible.builtin.set_fact:
+        oauth2_proxy_env_file: >-
+          {{ lookup('template', '../roles/oauth2_proxy/templates/oauth2-proxy.env.j2') }}
+
+    - name: check environment file
+      ansible.builtin.assert:
+        that:
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_CLIENT_ID=dashboard-client')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_CLIENT_SECRET=dashboard-secret')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_SCOPE=openid email profile')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_PROVIDER=oidc')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_EMAIL_DOMAINS=\*')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_PASS_HOST_HEADER=false')
+          - oauth2_proxy_env_file is search('OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true')
+          - >-
+            oauth2_proxy_env_file is search(
+            'OAUTH2_PROXY_REDIRECT_URL=https://dashboard.example.com/oauth2/callback')
+          - >-
+            oauth2_proxy_env_file is search(
+            'OAUTH2_PROXY_OIDC_ISSUER_URL=https://auth.example.com')
+          - >-
+            oauth2_proxy_env_file is not search(
+            'OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL')
+
+    - name: render service unit
+      ansible.builtin.set_fact:
+        oauth2_proxy_service: >-
+          {{ lookup('template', '../roles/oauth2_proxy/templates/oauth2-proxy.service.j2') }}
+
+    - name: check service unit
+      ansible.builtin.assert:
+        that:
+          - oauth2_proxy_service is search('Requires=podman-api.service')
+          - oauth2_proxy_service is search('--name oauth2-proxy-dashboard')
+          - oauth2_proxy_service is search('--env-file /var/lib/oauth2-proxy/dashboard/.env')
+          - oauth2_proxy_service is search('--memory 256m')
+          - oauth2_proxy_service is search('--http-address 127.0.0.1:4180')
+          - oauth2_proxy_service is search('quay.io/oauth2-proxy/oauth2-proxy:v')
+          - oauth2_proxy_service is not search('--upstream')
+          - oauth2_proxy_service is not search('--oidc-issuer-url')
+          - oauth2_proxy_service is not search('--pod')
+          - oauth2_proxy_service is search('--network host')
+
+    - name: set an IPv6 listen address
+      ansible.builtin.set_fact:
+        oauth2_proxy_instance_listen_address: "::1"
+
+    - name: render service unit with an IPv6 listen address
+      ansible.builtin.set_fact:
+        oauth2_proxy_service_ipv6: >-
+          {{ lookup('template', '../roles/oauth2_proxy/templates/oauth2-proxy.service.j2') }}
+
+    - name: check the IPv6 listen address is bracketed
+      ansible.builtin.assert:
+        that:
+          - oauth2_proxy_service_ipv6 is search('--http-address \[::1\]:4180')

@@ -1,0 +1,128 @@
+---
+# All provider settings travel through the environment file, so the role does
+# not name any provider or OIDC flag itself. The service unit carries only the
+# listen address.
+- name: Check the oauth2-proxy container platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['service_mgr'] | default('') == 'systemd'
+    fail_msg: >-
+      The oauth2_proxy container deployment needs systemd. Use a host that runs
+      systemd and gather facts on it, or remove this role from the host.
+    quiet: true
+
+- name: Check that oauth2-proxy instances are configured
+  ansible.builtin.assert:
+    that:
+      - oauth2_proxy_instances | length > 0
+    fail_msg: >-
+      Set oauth2_proxy_instances before you deploy the oauth2-proxy containers.
+    quiet: true
+
+- name: Ensure oauth2-proxy group exists
+  become: true
+  ansible.builtin.group:
+    name: "{{ oauth2_proxy_group }}"
+    system: true
+  when: oauth2_proxy_manage_user
+
+- name: Ensure oauth2-proxy user exists
+  become: true
+  ansible.builtin.user:
+    name: "{{ oauth2_proxy_user }}"
+    group: "{{ oauth2_proxy_group }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+  when: oauth2_proxy_manage_user
+
+- name: Ensure per-instance oauth2-proxy data directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ oauth2_proxy_instance_data_dir }}"
+    state: directory
+    owner: "{{ oauth2_proxy_user }}"
+    group: "{{ oauth2_proxy_group }}"
+    mode: "0750"
+  loop: "{{ oauth2_proxy_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    oauth2_proxy_instance_data_dir: "{{ item.data_dir }}"
+  no_log: true
+
+- name: Deploy per-instance oauth2-proxy .env file
+  become: true
+  ansible.builtin.template:
+    src: "oauth2-proxy.env.j2"
+    dest: "{{ oauth2_proxy_instance_data_dir }}/.env"
+    owner: "{{ oauth2_proxy_user }}"
+    group: "{{ oauth2_proxy_group }}"
+    mode: "0600"
+  diff: false
+  loop: "{{ oauth2_proxy_instances }}"
+  no_log: true
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    oauth2_proxy_instance_data_dir: "{{ item.data_dir }}"
+    oauth2_proxy_env_secret: >-
+      {{ {
+           'OAUTH2_PROXY_PROVIDER': oauth2_proxy_provider,
+           'OAUTH2_PROXY_EMAIL_DOMAINS': oauth2_proxy_email_domain,
+           'OAUTH2_PROXY_SKIP_PROVIDER_BUTTON':
+             oauth2_proxy_skip_provider_button | lower,
+           'OAUTH2_PROXY_PASS_HOST_HEADER':
+             oauth2_proxy_pass_host_header | lower,
+         }
+         | combine(oauth2_proxy_env)
+         | combine(item.env | default({}))
+         | combine({
+             'OAUTH2_PROXY_CLIENT_ID': item.client_id,
+             'OAUTH2_PROXY_CLIENT_SECRET': item.client_secret,
+             'OAUTH2_PROXY_COOKIE_SECRET': item.cookie_secret,
+             'OAUTH2_PROXY_REDIRECT_URL': item.redirect_url,
+             'OAUTH2_PROXY_UPSTREAMS': item.upstream,
+           })
+         | combine(
+             {'OAUTH2_PROXY_OIDC_ISSUER_URL': item.oidc_issuer_url}
+             if item.oidc_issuer_url is defined else {}) }}
+  notify: Restart oauth2-proxy container
+
+- name: Deploy per-instance oauth2-proxy container service
+  become: true
+  ansible.builtin.template:
+    src: "oauth2-proxy.service.j2"
+    dest: >-
+      /etc/systemd/system/{{ oauth2_proxy_container_service_name_prefix }}-{{ item.name }}.service
+    mode: "0644"
+  loop: "{{ oauth2_proxy_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    oauth2_proxy_instance_name: "{{ item.name }}"
+    oauth2_proxy_instance_pod: "{{ item.pod | default('') }}"
+    oauth2_proxy_instance_container_name: "{{ oauth2_proxy_container_name_prefix }}-{{ item.name }}"
+    oauth2_proxy_instance_data_dir: "{{ item.data_dir }}"
+    oauth2_proxy_instance_listen_address: >-
+      {{ item.listen_address | default(oauth2_proxy_listen_address) }}
+    oauth2_proxy_instance_listen_port: >-
+      {{ item.listen_port | default(oauth2_proxy_listen_port) }}
+    oauth2_proxy_instance_depends_on: "{{ item.depends_on | default([]) }}"
+  no_log: true
+  notify: Restart oauth2-proxy container
+
+- name: Ensure per-instance oauth2-proxy container service is running
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ oauth2_proxy_container_service_name_prefix }}-{{ item.name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: "{{ oauth2_proxy_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  when:
+    - oauth2_proxy_container_manage_service
+    - not ansible_check_mode

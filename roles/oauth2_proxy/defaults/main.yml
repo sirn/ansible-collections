@@ -1,0 +1,66 @@
+---
+# Default values for the oauth2_proxy role
+# Override in group_vars/host_vars
+
+# Deployment method. The role ships one method: Podman containers under
+# systemd, one container per instance. Set this to true to use it.
+oauth2_proxy_deploy_container: false
+
+# Instance settings.
+oauth2_proxy_user: "oauth2proxy"
+oauth2_proxy_group: "{{ oauth2_proxy_user }}"
+# Create the user and group when they are missing. Set to false when the host
+# already provides them, for example when another role owns the account.
+oauth2_proxy_manage_user: true
+# Instances listen on loopback by default, because Caddy fronts them on the
+# same host. Use 0.0.0.0 when clients reach an instance directly.
+oauth2_proxy_listen_address: "127.0.0.1"
+oauth2_proxy_listen_port: 4180
+oauth2_proxy_provider: "oidc"
+oauth2_proxy_email_domain: "*"
+oauth2_proxy_pass_host_header: false
+oauth2_proxy_skip_provider_button: true
+# Environment variables added to every instance. Use this for provider
+# settings that this role does not name, for example
+#   OAUTH2_PROXY_SCOPE: "openid email profile"
+oauth2_proxy_env: {}
+# List of instances. Each entry:
+#   name: instance name (container/service suffix)
+#   pod: pod name to join (empty for standalone)
+#   data_dir: per-instance env file directory
+#   listen_address: optional bind address (default: oauth2_proxy_listen_address)
+#   listen_port: optional port (default: oauth2_proxy_listen_port); give each
+#     instance its own port when the containers share the host network
+#   upstream: upstream URL to proxy
+#   redirect_url: OAuth callback URL
+#   client_id: OAuth client ID
+#   client_secret: OAuth client secret
+#   cookie_secret: per-instance cookie secret
+#   oidc_issuer_url: optional OIDC issuer URL
+#   env: extra environment variables for this instance
+#   depends_on: list of systemd service names to Requires/After
+oauth2_proxy_instances: []
+
+# Container deployment.
+oauth2_proxy_container_image: "quay.io/oauth2-proxy/oauth2-proxy:v7.8.1"
+oauth2_proxy_container_name_prefix: "oauth2-proxy"
+# Prefix of the systemd unit that runs each container.
+oauth2_proxy_container_service_name_prefix: "oauth2-proxy"
+oauth2_proxy_container_manage_service: true
+# Podman network mode for standalone containers. host lets an instance reach a
+# host-loopback upstream and lets Caddy reach the instance on loopback. Set to
+# "" to let Podman use its default network, for example when instances join a
+# pod that carries the network settings.
+oauth2_proxy_container_network: "host"
+oauth2_proxy_container_memory: "256m"
+oauth2_proxy_container_cpus: "0.5"
+oauth2_proxy_container_pids_limit: 128
+oauth2_proxy_container_security_options:
+  - "no-new-privileges:true"
+oauth2_proxy_container_cap_drop: []
+
+# Container runtime. Each container role has its own copy, so a host can run
+# containers for one role and not for another.
+oauth2_proxy_container_runtime_binary: "/usr/bin/podman"
+# systemd container socket service, without .service, for example podman-api.
+oauth2_proxy_container_runtime_api_service: ""
