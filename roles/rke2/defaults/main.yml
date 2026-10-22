@@ -1,0 +1,32 @@
+---
+rke2_role: server
+
+rke2_version: stable
+
+# Server configuration
+
+rke2_server_tls_san: []
+
+rke2_server_node_taints: []
+
+rke2_server_cluster_cidr: 10.42.0.0/16
+
+rke2_server_service_cidr: 10.43.0.0/16
+
+rke2_server_disable: []
+
+rke2_server_write_kubeconfig_mode: "0640"
+
+# Agent configuration
+
+rke2_server_url:
+
+rke2_token:
+
+rke2_agent_node_labels: []
+
+rke2_agent_node_taints: []
+
+# Extra args for both server and agent
+
+rke2_extra_args: {}

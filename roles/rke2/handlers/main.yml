@@ -1,0 +1,32 @@
+---
+- name: restart rke2-server
+  become: true
+  ansible.builtin.service:
+    name: rke2-server
+    state: restarted
+  when: rke2_role == 'server'
+
+- name: restart rke2-agent
+  become: true
+  ansible.builtin.service:
+    name: rke2-agent
+    state: restarted
+  when: rke2_role == 'agent'
+
+- name: wait for rke2-server
+  become: true
+  ansible.builtin.wait_for:
+    port: 6443
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 10
+    timeout: 300
+  when: rke2_role == 'server'
+
+- name: wait for rke2-agent
+  become: true
+  ansible.builtin.wait_for:
+    port: 10250
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 10
+    timeout: 300
+  when: rke2_role == 'agent'

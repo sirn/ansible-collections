@@ -1,0 +1,24 @@
+write-kubeconfig-mode: "{{ rke2_server_write_kubeconfig_mode }}"
+{% if rke2_server_tls_san %}
+tls-san:
+{% for san in rke2_server_tls_san %}
+  - {{ san }}
+{% endfor %}
+{% endif %}
+{% if rke2_server_node_taints %}
+node-taint:
+{% for taint in rke2_server_node_taints %}
+  - "{{ taint }}"
+{% endfor %}
+{% endif %}
+cluster-cidr: {{ rke2_server_cluster_cidr }}
+service-cidr: {{ rke2_server_service_cidr }}
+{% if rke2_server_disable %}
+disable:
+{% for item in rke2_server_disable %}
+  - {{ item }}
+{% endfor %}
+{% endif %}
+{% for key, value in rke2_extra_args.items() %}
+{{ key }}: {{ value }}
+{% endfor %}

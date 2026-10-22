@@ -1,0 +1,112 @@
+---
+## Install prerequisites
+##
+
+- name: Install prerequisite packages
+  become: true
+  ansible.builtin.apt:
+    name:
+      - iptables
+      - nftables
+      - nfs-common
+      - open-iscsi
+    state: present
+    update_cache: true
+
+## Install RKE2
+##
+
+- name: Check if rke2 is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/rke2
+  register: rke2_binary
+
+- name: Download rke2 installer
+  become: true
+  ansible.builtin.get_url:
+    url: https://get.rke2.io
+    dest: /tmp/install-rke2.sh
+    mode: "0755"
+  when: not rke2_binary.stat.exists
+
+- name: Install rke2
+  become: true
+  ansible.builtin.command:
+    cmd: /tmp/install-rke2.sh
+  environment:
+    INSTALL_RKE2_CHANNEL: "{{ rke2_version }}"
+    INSTALL_RKE2_TYPE: "{{ rke2_role }}"
+  when: not rke2_binary.stat.exists
+  changed_when: true
+
+- name: Remove installer script
+  become: true
+  ansible.builtin.file:
+    path: /tmp/install-rke2.sh
+    state: absent
+
+## Configure RKE2
+##
+
+- name: Ensure rancher directory exists
+  become: true
+  ansible.builtin.file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: "0755"
+
+- name: Configure rke2
+  become: true
+  ansible.builtin.template:
+    src: "config_{{ rke2_role }}.yaml.j2"
+    dest: /etc/rancher/rke2/config.yaml
+    mode: "0640"
+  notify:
+    - "restart rke2-{{ rke2_role }}"
+    - "wait for rke2-{{ rke2_role }}"
+
+- name: Enable rke2 service
+  become: true
+  ansible.builtin.systemd:
+    name: "rke2-{{ rke2_role }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  notify:
+    - "wait for rke2-{{ rke2_role }}"
+
+## Server-specific tasks
+##
+
+- name: Setup kubectl for server
+  when: rke2_role == 'server'
+  block:
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.kube"
+        state: directory
+        mode: "0750"
+
+    - name: Copy kubeconfig to user home
+      become: true
+      ansible.builtin.copy:
+        src: /etc/rancher/rke2/rke2.yaml
+        dest: "{{ ansible_env.HOME }}/.kube/config"
+        remote_src: true
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+        mode: "0600"
+
+    - name: Create kubectl symlink
+      become: true
+      ansible.builtin.file:
+        src: /var/lib/rancher/rke2/bin/kubectl
+        dest: /usr/local/bin/kubectl
+        state: link
+
+## Per-role flush
+##
+
+- name: Flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

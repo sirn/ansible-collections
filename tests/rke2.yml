@@ -1,0 +1,59 @@
+---
+- name: test rke2 configuration templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load rke2 defaults
+      ansible.builtin.include_vars: ../roles/rke2/defaults/main.yml
+
+    - name: set test server values
+      ansible.builtin.set_fact:
+        rke2_server_tls_san:
+          - server.example.com
+        rke2_server_disable:
+          - rke2-ingress-nginx
+        rke2_extra_args:
+          cni: cilium
+
+    - name: render server configuration
+      ansible.builtin.set_fact:
+        rke2_server_conf: "{{ lookup('template', '../roles/rke2/templates/config_server.yaml.j2') }}"
+
+    - name: check server configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            rke2_server_conf is search('write-kubeconfig-mode: "0640"')
+          - >-
+            rke2_server_conf is search('cluster-cidr: 10.42.0.0/16')
+          - >-
+            rke2_server_conf is search('service-cidr: 10.43.0.0/16')
+          - rke2_server_conf is search('- server.example.com')
+          - rke2_server_conf is search('- rke2-ingress-nginx')
+          - >-
+            rke2_server_conf is search('cni: cilium')
+
+    - name: set test agent values
+      ansible.builtin.set_fact:
+        rke2_role: agent
+        rke2_server_url: https://server.example.com:9345
+        rke2_token: test-token
+        rke2_agent_node_labels:
+          - role=worker
+        rke2_agent_node_taints:
+          - dedicated=worker:NoSchedule
+
+    - name: render agent configuration
+      ansible.builtin.set_fact:
+        rke2_agent_conf: "{{ lookup('template', '../roles/rke2/templates/config_agent.yaml.j2') }}"
+
+    - name: check agent configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            rke2_agent_conf is search('server: https://server.example.com:9345')
+          - >-
+            rke2_agent_conf is search('token: test-token')
+          - rke2_agent_conf is search('- "role=worker"')
+          - rke2_agent_conf is search('- "dedicated=worker:NoSchedule"')
