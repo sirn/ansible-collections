@@ -1,0 +1,16 @@
+---
+- name: setup directories for dhparam
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/etc/ssl
+    state: directory
+    mode: "0755"
+
+# The haproxy role references this file from its default configuration.
+- name: fetch ffdhe2048 for dhparam
+  become: true
+  ansible.builtin.get_url:
+    url: https://ssl-config.mozilla.org/ffdhe2048.txt
+    dest: /usr/local/etc/ssl/ffdhe2048.txt
+    mode: "0644"
+    checksum: sha256:2ef7758563185ad0dc1dbc38ab3a91647701e3ebee344fcf86b52e643bacb721
