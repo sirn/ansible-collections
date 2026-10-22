@@ -1,0 +1,52 @@
+---
+- name: test wireguard configuration template
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load wireguard defaults
+      ansible.builtin.include_vars: ../roles/wireguard/defaults/main.yml
+
+    - name: set test interface values
+      ansible.builtin.set_fact:
+        wireguard_addresses:
+          - 192.0.2.2/24
+        wireguard_dns:
+          - 192.0.2.1
+        wireguard_private_key: test-private-key
+        wireguard_mtu: 1420
+        wireguard_post_up:
+          - echo first
+          - echo second
+        wireguard_peers:
+          - name: test-peer
+            allowed_ips:
+              - 192.0.2.0/24
+              - 10.0.0.0/8
+            endpoint: 198.51.100.1:51820
+            public_key: test-public-key
+            persistent_keepalive: 25
+
+    - name: render wireguard configuration
+      ansible.builtin.set_fact:
+        wireguard_conf: "{{ lookup('template', '../roles/wireguard/templates/wg.conf.j2') }}"
+
+    - name: check interface settings
+      ansible.builtin.assert:
+        that:
+          - wireguard_conf is search('Address = 192.0.2.2/24')
+          - wireguard_conf is search('ListenPort = 51820')
+          - wireguard_conf is search('PrivateKey = test-private-key')
+          - wireguard_conf is search('DNS = 192.0.2.1')
+          - wireguard_conf is search('MTU = 1420')
+          - wireguard_conf is search('PostUp = echo first')
+          - wireguard_conf is search('PostUp = echo second')
+
+    - name: check peer settings
+      ansible.builtin.assert:
+        that:
+          - wireguard_conf is search('# Name = test-peer')
+          - wireguard_conf is search('AllowedIPs = 192.0.2.0/24, 10.0.0.0/8')
+          - wireguard_conf is search('Endpoint = 198.51.100.1:51820')
+          - wireguard_conf is search('PublicKey = test-public-key')
+          - wireguard_conf is search('PersistentKeepalive = 25')

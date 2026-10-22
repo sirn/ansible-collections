@@ -1,0 +1,66 @@
+[Interface]
+Address = {{ wireguard_addresses | join(', ') }}
+ListenPort = {{ wireguard_port }}
+PrivateKey = {{ wireguard_private_key }}
+{% if wireguard_dns %}
+DNS = {{ wireguard_dns | join(', ') }}
+{% endif %}
+{% if wireguard_table %}
+Table = {{ wireguard_table }}
+{% endif %}
+{% if wireguard_mtu %}
+MTU = {{ wireguard_mtu }}
+{% endif %}
+{% if wireguard_pre_up %}
+{% if wireguard_pre_up is string %}
+PreUp = {{ wireguard_pre_up }}
+{% else %}
+{% for cmd in wireguard_pre_up %}
+PreUp = {{ cmd }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if wireguard_post_up %}
+{% if wireguard_post_up is string %}
+PostUp = {{ wireguard_post_up }}
+{% else %}
+{% for cmd in wireguard_post_up %}
+PostUp = {{ cmd }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if wireguard_pre_down %}
+{% if wireguard_pre_down is string %}
+PreDown = {{ wireguard_pre_down }}
+{% else %}
+{% for cmd in wireguard_pre_down %}
+PreDown = {{ cmd }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if wireguard_post_down %}
+{% if wireguard_post_down is string %}
+PostDown = {{ wireguard_post_down }}
+{% else %}
+{% for cmd in wireguard_post_down %}
+PostDown = {{ cmd }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% for peer in wireguard_peers %}
+
+[Peer]
+{% if "name" in peer and peer.name %}
+# Name = {{ peer.name }}
+{% endif %}
+AllowedIPs = {{ peer.allowed_ips | join(', ') }}
+{% if "endpoint" in peer and peer.endpoint %}
+Endpoint = {{ peer.endpoint }}
+{% endif %}
+{% if "public_key" in peer and peer.public_key %}
+PublicKey = {{ peer.public_key }}
+{% endif %}
+{% if "persistent_keepalive" in peer and peer.persistent_keepalive %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,37 @@
+---
+- name: reboot system
+  become: true
+  ansible.builtin.shell: sleep 2 && shutdown -r now "Maintenance reboot"
+  async: 0
+  poll: 0
+  changed_when: true
+  failed_when: false
+
+- name: wait for system reboot
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600
+
+- name: start wireguard service
+  become: true
+  ansible.builtin.service:
+    name: wireguard
+    state: started
+
+- name: restart wireguard service
+  become: true
+  ansible.builtin.service:
+    name: wireguard
+    state: restarted
+
+- name: start wireguard systemd
+  become: true
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wireguard_interface }}"
+    state: started
+
+- name: restart wireguard systemd
+  become: true
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wireguard_interface }}"
+    state: restarted

@@ -1,0 +1,27 @@
+---
+wireguard_addresses:
+  - 192.0.2.1/24
+
+wireguard_dns: []
+
+wireguard_interface: wg0
+
+wireguard_mtu:
+
+wireguard_peers: []
+
+wireguard_port: 51820
+
+wireguard_post_down:
+
+wireguard_post_up:
+
+wireguard_pre_down:
+
+wireguard_pre_up:
+
+wireguard_private_key:
+
+wireguard_relay: false
+
+wireguard_table:

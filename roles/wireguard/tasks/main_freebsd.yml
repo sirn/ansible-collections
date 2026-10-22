@@ -1,0 +1,83 @@
+---
+## Install
+##
+
+- name: install wireguard
+  become: true
+  community.general.pkgng:
+    name:
+      - wireguard-tools
+    state: latest
+  notify:
+    - restart wireguard service
+
+- name: ensure libexec directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/libexec
+    state: directory
+    mode: "0755"
+
+- name: install wg-pf-helper
+  become: true
+  ansible.builtin.copy:
+    src: wg_pf_helper.sh
+    dest: /usr/local/libexec/wg-pf-helper
+    mode: "0755"
+
+## Configure
+##
+
+- name: enable gateway
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf
+    line: '{{ item }}="YES"'
+    regexp: "^#?( +)?{{ item }}="
+  when: wireguard_relay
+  with_items:
+    - gateway_enable
+    - ipv6_gateway_enable
+  notify:
+    - reboot system
+    - wait for system reboot
+
+- name: ensure wireguard configuration directory
+  become: true
+  ansible.builtin.file:
+    dest: /usr/local/etc/wireguard
+    state: directory
+    mode: "0700"
+
+- name: configure wireguard
+  become: true
+  ansible.builtin.template:
+    src: wg.conf.j2
+    dest: "/usr/local/etc/wireguard/{{ wireguard_interface }}.conf"
+    mode: "0600"
+  notify:
+    - restart wireguard service
+
+- name: configure wireguard interface
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/rc.conf
+    line: 'wireguard_interfaces="{{ wireguard_interface }}"'
+    regexp: "^#?( +)?wireguard_interface="
+  notify:
+    - restart wireguard service
+
+- name: enable wireguard
+  become: true
+  ansible.builtin.service:
+    name: wireguard
+    enabled: true
+  notify:
+    - start wireguard service
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
