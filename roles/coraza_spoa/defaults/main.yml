@@ -18,6 +18,8 @@ coraza_spoa_applications:
   - name: default
     body_access: true
 
+coraza_spoa_extra_directives: ""
+
 coraza_spoa_logger: |
   #!/usr/local/bin/execlineb -P
   s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/coraza-spoa/

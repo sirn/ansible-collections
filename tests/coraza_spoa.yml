@@ -48,6 +48,27 @@
       loop_control:
         label: "{{ item.name }}"
 
+    - name: Set caller directives
+      ansible.builtin.set_fact:
+        coraza_spoa_extra_directives: |
+          SecRule REQUEST_FILENAME "@streq /sample/feed" \
+              "id:1000001,phase:1,pass,nolog,chain"
+              SecRule ARGS:query "@rx ^[A-Za-z0-9._|,-]+$" \
+                  "ctl:ruleRemoveTargetById=930120;ARGS:query"
+
+    - name: Render policies with caller directives
+      ansible.builtin.set_fact:
+        coraza_test_extra: "{{ lookup('template', '../roles/coraza_spoa/templates/coraza-spoa.yml.j2') | from_yaml }}"
+
+    - name: Check caller directives follow every policy
+      ansible.builtin.assert:
+        that:
+          - "'ruleRemoveTargetById=930120;ARGS:query' in item.directives"
+          - "'SecRule REQUEST_FILENAME' in item.directives"
+      loop: "{{ coraza_test_extra.applications }}"
+      loop_control:
+        label: "{{ item.name }}"
+
     - name: Set caller-defined applications
       ansible.builtin.set_fact:
         coraza_spoa_applications:

@@ -22,4 +22,7 @@ applications:
       SecResponseBodyAccess Off
       Include @crs-setup.conf.example
       Include @owasp_crs/*.conf
+{% if coraza_spoa_extra_directives %}
+{{ coraza_spoa_extra_directives | trim | indent(6, true) }}
+{% endif %}
 {% endfor %}

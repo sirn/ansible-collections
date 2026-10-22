@@ -23,6 +23,14 @@ List of inspection policies:
 
 All applications use the embedded OWASP CRS with the `coraza_spoa_rule_engine` mode. Audit logging, debug logging, and response inspection are disabled. The caller must send only complete bodies within `coraza_spoa_body_limit` and the SPOE transport limit. Do not treat missing verdicts or transport errors as successful inspection.
 
+#### coraza_spoa_extra_directives
+
+```yaml
+coraza_spoa_extra_directives: ""
+```
+
+Directives appended to every application after the CRS include. Use it for caller-specific rule exclusions or local rules. Keep exclusions narrow: match the request path and the single argument that produces the false positive, and drop only the target from the rule that produced it. Rules defined here need IDs outside the CRS ranges 900,000-999,999 and 9,000,000-9,999,999.
+
 #### coraza_spoa_binary
 
 ```yaml
