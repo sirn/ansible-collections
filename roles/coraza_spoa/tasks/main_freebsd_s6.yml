@@ -88,6 +88,12 @@
   become: true
   ansible.builtin.meta: flush_handlers
 
+- name: Start Coraza prior to checking socket
+  become: true
+  ansible.builtin.shell: s6-svscanctl -an /var/service && s6-svc -wu /var/service/coraza-spoa
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Wait for Coraza socket
   become: true
   ansible.builtin.wait_for:
