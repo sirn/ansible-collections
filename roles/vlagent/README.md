@@ -46,15 +46,17 @@ Directory where persistent remote-write queues and file checkpoints are stored. 
 vlagent_extra_fields: {}
 ```
 
-Dictionary of static key-value fields added to collected log entries. Set stable `host` and `job` fields here.
+Dictionary of static key-value fields added to collected log entries. Set a stable `host` field here. Set `job` here only when every collected source shares one job.
 
-#### vlagent_file_glob
+#### vlagent_file_globs
 
 ```yaml
-vlagent_file_glob: ""
+vlagent_file_globs: []
 ```
 
-Required. Glob pattern of JSON log files readable by `vlagent_user`. Do not include an s6 timestamp prefix or compressed files. Select current files, not all rotated files, to avoid replaying old logs.
+Required. Glob patterns of JSON log files readable by `vlagent_user`. Each pattern emits one `-fileCollector.glob` flag. Do not include an s6 timestamp prefix or compressed files. Select current files, not all rotated files, to avoid replaying old logs.
+
+The collector applies one `vlagent_extra_fields` map to every pattern, so keep `job` out of that map when the sources differ. Each source must write its own `job` field.
 
 #### vlagent_listen_address
 

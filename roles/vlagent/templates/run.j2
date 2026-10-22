@@ -7,7 +7,9 @@ fdmove -c 2 1
   -remoteWrite.url={{ vlagent_remote_write_url }}
   -remoteWrite.maxDiskUsagePerURL={{ vlagent_max_disk_usage_per_url }}
   -memory.allowedBytes={{ vlagent_memory_allowed_bytes }}
-  "-fileCollector.glob={{ vlagent_file_glob | replace('\\', '\\\\') | replace('"', '\\"') }}"
+{% for glob in vlagent_file_globs %}
+  "-fileCollector.glob={{ glob | replace('\\', '\\\\') | replace('"', '\\"') }}"
+{% endfor %}
   "-fileCollector.extraFields={{ vlagent_extra_fields | to_json | replace('\\', '\\\\') | replace('"', '\\"') }}"
   -fileCollector.streamFields={{ vlagent_stream_fields | join(',') }}
   "-fileCollector.timeField={{ vlagent_time_field | replace('\\', '\\\\') | replace('"', '\\"') }}"

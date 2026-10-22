@@ -2,7 +2,7 @@
 - name: Check vlagent settings
   ansible.builtin.assert:
     that:
-      - vlagent_file_glob | length > 0
+      - vlagent_file_globs | length > 0
       - vlagent_remote_write_url | length > 0
 
 - name: Inspect cached host vlagent binary

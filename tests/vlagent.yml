@@ -10,7 +10,7 @@
     - name: Check log source is required
       ansible.builtin.assert:
         that:
-          - vlagent_file_glob == ''
+          - vlagent_file_globs == []
 
     - name: Reject absent log source
       block:
@@ -26,7 +26,7 @@
           ansible.builtin.assert:
             that:
               - ansible_failed_task.name == 'Check vlagent settings'
-              - ansible_failed_result.assertion == 'vlagent_file_glob | length > 0'
+              - ansible_failed_result.assertion == 'vlagent_file_globs | length > 0'
         - name: Record log source rejection
           ansible.builtin.set_fact:
             vlagent_test_source_rejected: true
@@ -45,7 +45,8 @@
             s6: true
             ansible_os_family: FreeBSD
             ansible_architecture: arm64
-            vlagent_file_glob: /var/log/example/current
+            vlagent_file_globs:
+              - /var/log/example/current
       rescue:
         - name: Verify empty log destination was rejected
           ansible.builtin.assert:
@@ -63,7 +64,8 @@
 
     - name: Set test log destination and labels
       ansible.builtin.set_fact:
-        vlagent_file_glob: /var/log/example/current
+        vlagent_file_globs:
+          - /var/log/example/current
         vlagent_remote_write_url: http://192.0.2.10:9428/insert/native
         vlagent_extra_fields:
           host: testhost
@@ -90,7 +92,8 @@
 
     - name: Configure log path with spaces, quotes, and backslashes
       ansible.builtin.set_fact:
-        vlagent_file_glob: '/var/log/example "quoted"\path/current'
+        vlagent_file_globs:
+          - '/var/log/example "quoted"\path/current'
 
     - name: Check log path quoting
       ansible.builtin.assert:
@@ -98,7 +101,23 @@
           - >-
             (lookup('template', '../roles/vlagent/templates/run.j2').splitlines()
             | select('search', '-fileCollector.glob=') | first | trim | from_json)
-            == '-fileCollector.glob=' + vlagent_file_glob
+            == '-fileCollector.glob=' + vlagent_file_globs[0]
+
+    - name: Configure two log sources
+      ansible.builtin.set_fact:
+        vlagent_file_globs:
+          - /var/log/example/current
+          - /var/log/second/current
+
+    - name: Check every log source emits a glob flag
+      ansible.builtin.assert:
+        that:
+          - >-
+            (lookup('template', '../roles/vlagent/templates/run.j2').splitlines()
+            | select('search', '-fileCollector.glob=') | list | length) == 2
+          - >-
+            lookup('template', '../roles/vlagent/templates/run.j2')
+            is search('-fileCollector.glob=/var/log/second/current')
 
     - name: Configure source JSON field names
       ansible.builtin.set_fact:

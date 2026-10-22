@@ -13,7 +13,7 @@ vlagent_remote_write_url: ""
 vlagent_data_dir: /var/db/vlagent
 vlagent_max_disk_usage_per_url: 1GiB
 vlagent_memory_allowed_bytes: 128MiB
-vlagent_file_glob: ""
+vlagent_file_globs: []
 vlagent_time_field: time
 vlagent_msg_field: message
 vlagent_extra_fields: {}
