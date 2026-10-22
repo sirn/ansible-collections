@@ -1,0 +1,21 @@
+---
+- name: rescan dnsmasq s6
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  register: rescan_dnsmasq_s6
+  changed_when: rescan_dnsmasq_s6 is succeeded
+  failed_when: rescan_dnsmasq_s6 is not succeeded
+
+- name: restart dnsmasq
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/dnsmasq
+  register: restart_dnsmasq
+  changed_when: restart_dnsmasq is succeeded
+  failed_when: restart_dnsmasq is not succeeded
+
+- name: restart dnsmasq logger
+  become: true
+  ansible.builtin.command: s6-svc -t /var/service/dnsmasq/log
+  register: restart_dnsmasq_logger
+  changed_when: restart_dnsmasq_logger is succeeded
+  failed_when: restart_dnsmasq_logger is not succeeded

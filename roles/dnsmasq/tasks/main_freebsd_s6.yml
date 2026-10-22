@@ -1,0 +1,84 @@
+---
+## Install
+##
+
+- name: install dnsmasq
+  become: true
+  community.general.pkgng:
+    name:
+      - dnsmasq
+    state: latest
+  notify:
+    - restart dnsmasq
+
+- name: read dnsmasq rc enable state
+  become: true
+  ansible.builtin.command:
+    cmd: sysrc -n dnsmasq_enable
+  register: dnsmasq_rc_enable
+  changed_when: false
+  failed_when: false
+
+# The rc script stops the daemon through its pid file, which also matches the
+# s6-owned process, so stop it only while the rc service is still enabled.
+- name: disable dnsmasq rc service
+  become: true
+  ansible.builtin.service:
+    name: dnsmasq
+    state: stopped
+    enabled: false
+  when: >-
+    dnsmasq_rc_enable.stdout | default('') | trim | lower
+    not in ['', 'no', 'false', 'off', '0']
+
+## Configure
+##
+
+- name: configure dnsmasq
+  become: true
+  ansible.builtin.template:
+    src: dnsmasq.conf.j2
+    dest: /usr/local/etc/dnsmasq.conf
+    mode: "0644"
+  notify:
+    - restart dnsmasq
+
+## Supervise
+##
+
+- name: ensure dnsmasq service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/dnsmasq
+    - /var/service/dnsmasq/log
+
+- name: install dnsmasq service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/dnsmasq/run
+    mode: "0555"
+  notify:
+    - rescan dnsmasq s6
+    - restart dnsmasq
+
+- name: install dnsmasq s6 logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/dnsmasq/log/run
+    mode: "0555"
+    content: "{{ dnsmasq_logger }}"
+  notify:
+    - rescan dnsmasq s6
+    - restart dnsmasq logger
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers

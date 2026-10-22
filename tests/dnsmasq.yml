@@ -1,0 +1,47 @@
+---
+- name: test dnsmasq configuration template
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load dnsmasq defaults
+      ansible.builtin.include_vars: ../roles/dnsmasq/defaults/main.yml
+
+    - name: set test values
+      ansible.builtin.set_fact:
+        dnsmasq_listen_address: 192.0.2.1
+        dnsmasq_upstream_servers:
+          - 198.51.100.53
+        dnsmasq_host_records:
+          - name: web.example.com
+            address: 192.0.2.10
+
+    - name: render dnsmasq configuration
+      ansible.builtin.set_fact:
+        dnsmasq_conf: "{{ lookup('template', '../roles/dnsmasq/templates/dnsmasq.conf.j2') }}"
+
+    - name: check bind and forwarder settings
+      ansible.builtin.assert:
+        that:
+          - dnsmasq_conf is search('listen-address=192.0.2.1')
+          - dnsmasq_conf is search('bind-interfaces')
+          - dnsmasq_conf is search('no-resolv')
+          - dnsmasq_conf is search('log-facility=/var/log/dnsmasq.log')
+          - dnsmasq_conf is search('server=198.51.100.53')
+          - dnsmasq_conf is not search('server=1.1.1.1')
+
+    - name: check host records
+      ansible.builtin.assert:
+        that:
+          - dnsmasq_conf is search('host-record=web.example.com,192.0.2.10')
+
+    - name: render s6 dnsmasq configuration
+      ansible.builtin.set_fact:
+        dnsmasq_conf_s6: >-
+          {{ lookup('template', '../roles/dnsmasq/templates/dnsmasq.conf.j2',
+             template_vars={'s6': true}) }}
+
+    - name: check s6 logging
+      ansible.builtin.assert:
+        that:
+          - dnsmasq_conf_s6 is search('log-facility=-')

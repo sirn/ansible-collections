@@ -1,0 +1,26 @@
+# Managed by Ansible - do not edit manually
+
+# Bind to the configured listen address
+listen-address={{ dnsmasq_listen_address }}
+bind-interfaces
+
+# Do not read /etc/resolv.conf; use only explicitly configured servers
+no-resolv
+
+{% if s6 %}
+# Log to stderr for s6-log capture
+log-facility=-
+{% else %}
+# Log to a file
+log-facility=/var/log/dnsmasq.log
+{% endif %}
+
+# Upstream DNS servers
+{% for server in dnsmasq_upstream_servers %}
+server={{ server }}
+{% endfor %}
+
+# Split DNS host records
+{% for record in dnsmasq_host_records %}
+host-record={{ record.name }},{{ record.address }}
+{% endfor %}

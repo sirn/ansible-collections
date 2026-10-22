@@ -1,0 +1,16 @@
+---
+dnsmasq_host_records: []
+# Each entry: { name: "example.com", address: "192.0.2.10" }
+
+dnsmasq_listen_address: "127.0.0.1"
+
+dnsmasq_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/dnsmasq/
+
+dnsmasq_upstream_servers:
+  - 1.1.1.1
+  - 1.0.0.1
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false
