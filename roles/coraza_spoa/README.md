@@ -1,6 +1,6 @@
 # coraza_spoa
 
-Install and configure [Coraza SPOA](https://github.com/corazawaf/coraza-spoa) for detection-only request inspection with HAProxy. The role validates the agent configuration before replacement. Configure HAProxy message routing and failure handling in the caller; the role does not connect HAProxy or enable blocking.
+Install and configure [Coraza SPOA](https://github.com/corazawaf/coraza-spoa) for request inspection with HAProxy. The role validates the agent configuration before replacement. Configure HAProxy message routing and failure handling in the caller; the role does not connect HAProxy.
 
 ## Supported platforms
 
@@ -21,7 +21,7 @@ List of inspection policies:
 - `name` — application name selected by HAProxy SPOE messages
 - `body_access` — enable request-body inspection for this application
 
-All applications use `SecRuleEngine DetectionOnly` with the embedded OWASP CRS. Audit logging, debug logging, and response inspection are disabled. The caller must send only complete bodies within `coraza_spoa_body_limit` and the SPOE transport limit. Do not treat missing verdicts or transport errors as successful inspection.
+All applications use the embedded OWASP CRS with the `coraza_spoa_rule_engine` mode. Audit logging, debug logging, and response inspection are disabled. The caller must send only complete bodies within `coraza_spoa_body_limit` and the SPOE transport limit. Do not treat missing verdicts or transport errors as successful inspection.
 
 #### coraza_spoa_binary
 
@@ -106,6 +106,16 @@ coraza_spoa_revision: 1c7f567f2dbde725a921fc570289bc6774759b70
 ```
 
 Source commit to build. Its module files pin Coraza 3.7.0 and OWASP CRS 4.25.0. Update `coraza_spoa_version` and `coraza_spoa_source_sha256` when changing the revision.
+
+#### coraza_spoa_rule_engine
+
+```yaml
+coraza_spoa_rule_engine: DetectionOnly
+```
+
+Engine mode for every application. `DetectionOnly` reports matches and takes no disruptive action. `On` lets CRS blocking rules interrupt the request, which the agent reports as `txn.<prefix>.action`; the caller must deny on that variable to enforce it. The SPOE `detect-only` flag only sets the reported mode and metrics, so it does not suppress a verdict.
+
+Quote the value. A bare `On` is a YAML boolean and renders as `SecRuleEngine True`, which the agent rejects.
 
 #### coraza_spoa_socket
 

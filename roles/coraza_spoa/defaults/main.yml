@@ -9,6 +9,7 @@ coraza_spoa_go_package: go126
 coraza_spoa_go_binary: /usr/local/bin/go126
 coraza_spoa_user: coraza-spoa
 coraza_spoa_group: www
+coraza_spoa_rule_engine: DetectionOnly
 coraza_spoa_socket: /var/run/coraza-spoa/coraza-spoa.sock
 coraza_spoa_metrics_address: 127.0.0.1:9000
 coraza_spoa_config_dir: /usr/local/etc/coraza-spoa

@@ -65,3 +65,19 @@
         that:
           - "'SecRequestBodyAccess Off' in coraza_test_body_off.applications[0].directives"
           - "'SecRequestBodyAccess On' in coraza_test_body_off.applications[1].directives"
+
+    - name: Set enforcing engine mode
+      ansible.builtin.set_fact:
+        coraza_spoa_rule_engine: "On"
+
+    - name: Render enforcing policies
+      ansible.builtin.set_fact:
+        coraza_test_enforcing: "{{ lookup('template', '../roles/coraza_spoa/templates/coraza-spoa.yml.j2') | from_yaml }}"
+
+    - name: Check the engine mode follows the variable
+      ansible.builtin.assert:
+        that:
+          - "'SecRuleEngine On' in item.directives"
+      loop: "{{ coraza_test_enforcing.applications }}"
+      loop_control:
+        label: "{{ item.name }}"

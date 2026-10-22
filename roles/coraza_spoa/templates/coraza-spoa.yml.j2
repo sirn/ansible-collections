@@ -12,7 +12,7 @@ applications:
     log_format: json
     directives: |
       Include @coraza.conf-recommended
-      SecRuleEngine DetectionOnly
+      SecRuleEngine {{ coraza_spoa_rule_engine }}
       SecAuditEngine Off
       SecDebugLogLevel 0
       SecRequestBodyAccess {{ 'On' if application.body_access else 'Off' }}

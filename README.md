@@ -140,7 +140,7 @@ single implementation keep their tasks in `tasks/main.yml`.
 
 | Role | Platforms | Description |
 |------|-----------|-------------|
-| [`coraza_spoa`](roles/coraza_spoa/README.md) | FreeBSD | Detection-only WAF agent for HAProxy |
+| [`coraza_spoa`](roles/coraza_spoa/README.md) | FreeBSD | WAF agent for HAProxy |
 | [`dehydrated`](roles/dehydrated/README.md) | FreeBSD, OpenBSD | Let's Encrypt certificate provisioning |
 | [`dhparam`](roles/dhparam/README.md) | FreeBSD | Mozilla ffdhe2048 DH parameter file |
 | [`dnsmasq`](roles/dnsmasq/README.md) | FreeBSD | Forwarding DNS resolver with split-horizon records |
