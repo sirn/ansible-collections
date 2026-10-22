@@ -1,0 +1,13 @@
+# Bundled build context for a Caddy image with extra plugins.
+# Pass the plugins through CADDY_PLUGINS, for example:
+#   podman build \
+#     --build-arg CADDY_PLUGINS="--with github.com/caddy-dns/cloudflare" .
+ARG CADDY_BUILDER_IMAGE=docker.io/caddy:2-builder
+ARG CADDY_RUNTIME_IMAGE=docker.io/caddy:2
+
+FROM ${CADDY_BUILDER_IMAGE} AS builder
+ARG CADDY_PLUGINS=""
+RUN xcaddy build ${CADDY_PLUGINS}
+
+FROM ${CADDY_RUNTIME_IMAGE}
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy

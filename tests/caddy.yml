@@ -1,0 +1,126 @@
+---
+- name: test caddy templates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: load caddy defaults
+      ansible.builtin.include_vars: ../roles/caddy/defaults/main.yml
+
+    - name: check default deployment method
+      ansible.builtin.assert:
+        that:
+          - not caddy_deploy_container
+          - caddy_container_image == 'docker.io/caddy:2'
+          - caddy_container_service_name == 'caddy'
+          - caddy_container_env == {}
+
+    - name: set DNS-01 site values
+      ansible.builtin.set_fact:
+        caddy_acme_email: admin@example.com
+        caddy_tls_dns_provider: cloudflare
+        caddy_tls_dns_options:
+          api_token: "{$CF_API_TOKEN}"
+        caddy_sites:
+          - domain: app.example.com
+            reverse_proxy: 127.0.0.1:4180
+            host_header: 127.0.0.1
+            strip_origin: true
+          - domain: old.example.com
+            redirect: app.example.com
+
+    - name: render Caddyfile
+      ansible.builtin.set_fact:
+        caddyfile: "{{ lookup('template', '../roles/caddy/templates/Caddyfile.j2') }}"
+
+    - name: check Caddyfile
+      ansible.builtin.assert:
+        that:
+          - caddyfile is search('email admin@example.com')
+          - caddyfile is search('dns cloudflare {')
+          - caddyfile is search('api_token {\$CF_API_TOKEN}')
+          - caddyfile is search('reverse_proxy 127.0.0.1:4180')
+          - caddyfile is search('header_up Host 127.0.0.1')
+          - caddyfile is search('header_up -Origin')
+          - caddyfile is search('redir https://app.example.com{uri} 302')
+          - caddyfile is not search('auto_https off')
+
+    - name: set a host header site without origin stripping
+      ansible.builtin.set_fact:
+        caddy_sites:
+          - domain: app.example.com
+            reverse_proxy: 127.0.0.1:4180
+            host_header: 127.0.0.1
+
+    - name: render Caddyfile without origin stripping
+      ansible.builtin.set_fact:
+        caddyfile_keep_origin: "{{ lookup('template', '../roles/caddy/templates/Caddyfile.j2') }}"
+
+    - name: check origin stripping is opt-in
+      ansible.builtin.assert:
+        that:
+          - caddyfile_keep_origin is search('header_up Host 127.0.0.1')
+          - caddyfile_keep_origin is not search('header_up -Origin')
+
+    - name: set provider without options
+      ansible.builtin.set_fact:
+        caddy_tls_dns_provider: route53
+        caddy_tls_dns_options: {}
+
+    - name: render provider Caddyfile
+      ansible.builtin.set_fact:
+        caddyfile_provider: "{{ lookup('template', '../roles/caddy/templates/Caddyfile.j2') }}"
+
+    - name: check provider Caddyfile
+      ansible.builtin.assert:
+        that:
+          - caddyfile_provider is search('dns route53')
+          - caddyfile_provider is not search('dns route53 {')
+
+    - name: set plain HTTP site values
+      ansible.builtin.set_fact:
+        caddy_tls_dns_provider: ""
+        caddy_http_port: "8080"
+        caddy_sites:
+          - domain: plain.example.com
+            reverse_proxy: 127.0.0.1:4180
+
+    - name: render plain HTTP Caddyfile
+      ansible.builtin.set_fact:
+        caddyfile_http: "{{ lookup('template', '../roles/caddy/templates/Caddyfile.j2') }}"
+
+    - name: check plain HTTP Caddyfile
+      ansible.builtin.assert:
+        that:
+          - caddyfile_http is search('auto_https off')
+          - caddyfile_http is search('http://plain.example.com:8080 {')
+          - caddyfile_http is not search('^  tls {')
+          - caddyfile_http is not search('dns ')
+
+    - name: set service values
+      ansible.builtin.set_fact:
+        caddy_container_runtime_binary: /usr/bin/podman
+        caddy_container_runtime_api_service: podman-api
+        caddy_container_env:
+          CF_API_TOKEN: example-token
+        caddy_container_volumes:
+          - /run/secrets/caddy:/run/secrets/caddy:ro
+
+    - name: render service unit
+      ansible.builtin.set_fact:
+        caddy_service: "{{ lookup('template', '../roles/caddy/templates/caddy.service.j2') }}"
+
+    - name: check service unit
+      ansible.builtin.assert:
+        that:
+          - caddy_service is search('Requires=podman-api.service')
+          - caddy_service is search('After=podman-api.service network-online.target')
+          - caddy_service is search('--network host')
+          - caddy_service is search('--name caddy')
+          - caddy_service is search('--env-file /var/lib/caddy/container.env')
+          - caddy_service is search('--volume /run/secrets/caddy:/run/secrets/caddy:ro')
+          - caddy_service is search('--memory 512m')
+          - caddy_service is search('--cap-drop NET_RAW')
+          - caddy_service is search('--health-on-failure kill')
+          - caddy_service is search('/var/lib/caddy/Caddyfile:/etc/caddy/Caddyfile:ro')
+          - caddy_service is search('docker.io/caddy:2')

@@ -1,0 +1,49 @@
+# Caddyfile — managed by Ansible
+# Do not edit manually; changes will be overwritten.
+
+{
+{% if caddy_acme_email | length > 0 %}
+  email {{ caddy_acme_email }}
+{% endif %}
+{% if caddy_tls_dns_provider | length == 0 %}
+  auto_https off
+{% endif %}
+}
+
+{% for site in caddy_sites %}
+{% if caddy_tls_dns_provider | length == 0 and caddy_http_port | default("") | length > 0 %}
+http://{{ site.domain }}:{{ caddy_http_port }} {
+{% else %}
+{{ site.domain }} {
+{% endif %}
+{% if caddy_tls_dns_provider | length > 0 %}
+  tls {
+{% if caddy_tls_dns_options | default({}) | length > 0 %}
+    dns {{ caddy_tls_dns_provider }} {
+{% for key, value in caddy_tls_dns_options.items() %}
+      {{ key }} {{ value }}
+{% endfor %}
+    }
+{% else %}
+    dns {{ caddy_tls_dns_provider }}
+{% endif %}
+  }
+{% endif %}
+{% if site.redirect is defined %}
+  redir https://{{ site.redirect }}{uri} 302
+{% elif site.reverse_proxy is defined %}
+{% if site.host_header is defined %}
+  reverse_proxy {{ site.reverse_proxy }} {
+    header_up Host {{ site.host_header }}
+{% if site.strip_origin | default(false) %}
+    # WebSocket upgrades bypass HTTP middleware and check Origin again, so an
+    # upstream that guards Origin needs it dropped when Host is rewritten.
+    header_up -Origin
+{% endif %}
+  }
+{% else %}
+  reverse_proxy {{ site.reverse_proxy }}
+{% endif %}
+{% endif %}
+}
+{% endfor %}

@@ -1,0 +1,12 @@
+---
+- name: Check the deployment method
+  ansible.builtin.assert:
+    that:
+      - caddy_deploy_container
+    fail_msg: >-
+      The caddy role has one deployment method. Set caddy_deploy_container to
+      true on this host.
+    quiet: true
+
+- name: Include container deployment tasks
+  ansible.builtin.include_tasks: "main_container.yml"

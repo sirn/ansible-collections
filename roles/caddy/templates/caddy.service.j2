@@ -1,0 +1,49 @@
+[Unit]
+Description=Caddy container (shared ingress)
+# Shared host-network ingress: runs --network host and owns :80/:443 on the
+# host LAN IP. Terminates TLS in-container and reverse-proxies per-site
+# upstreams.
+{% if caddy_container_runtime_api_service | default('') | length > 0 %}
+Requires={{ caddy_container_runtime_api_service }}.service
+After={{ caddy_container_runtime_api_service }}.service network-online.target
+{% else %}
+After=network-online.target
+{% endif %}
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-{{ caddy_container_runtime_binary }} rm -f {{ caddy_container_name }}
+ExecStart={{ caddy_container_runtime_binary }} run --rm \
+  --name {{ caddy_container_name }} \
+  --network host \
+  --env-file {{ caddy_container_env_file }} \
+{% for volume in caddy_container_volumes %}
+  --volume {{ volume }} \
+{% endfor %}
+  --volume {{ caddy_config_dir }}/Caddyfile:/etc/caddy/Caddyfile:ro \
+  --volume {{ caddy_data_dir }}/data:/data \
+  --volume {{ caddy_data_dir }}/config:/config \
+  --memory {{ caddy_container_memory }} \
+  --cpus {{ caddy_container_cpus }} \
+  --pids-limit {{ caddy_container_pids_limit }} \
+{% for option in caddy_container_security_options %}
+  --security-opt {{ option }} \
+{% endfor %}
+{% for capability in caddy_container_cap_drop %}
+  --cap-drop {{ capability }} \
+{% endfor %}
+{% if caddy_container_healthcheck_cmd | default('') | length > 0 %}
+  --health-cmd '{{ caddy_container_healthcheck_cmd }}' \
+  --health-interval {{ caddy_container_healthcheck_interval }} \
+  --health-timeout {{ caddy_container_healthcheck_timeout }} \
+  --health-retries {{ caddy_container_healthcheck_retries }} \
+  --health-start-period {{ caddy_container_healthcheck_start_period }} \
+  --health-on-failure {{ caddy_container_healthcheck_on_failure }} \
+{% endif %}
+  {{ caddy_container_image }}
+ExecStop={{ caddy_container_runtime_binary }} stop {{ caddy_container_name }}
+
+[Install]
+WantedBy=multi-user.target

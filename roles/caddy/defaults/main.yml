@@ -1,0 +1,90 @@
+---
+# Default values for the caddy role
+# Override in group_vars/host_vars
+
+# Deployment method. The role ships one method: a Podman container under
+# systemd. Set this to true to use it.
+caddy_deploy_container: false
+
+# Caddyfile settings.
+caddy_user: "caddy"
+caddy_group: "{{ caddy_user }}"
+# Create the user and group when they are missing. Set to false when the host
+# already provides them, for example when another role owns the account.
+caddy_manage_user: true
+caddy_data_dir: "/var/lib/caddy"
+caddy_config_dir: "{{ caddy_data_dir }}"
+caddy_acme_email: ""
+# DNS-01 TLS provider, for example "cloudflare" or "route53".
+# Leave empty to disable the DNS challenge.
+caddy_tls_dns_provider: ""
+# Options written inside the dns block, for example
+#   api_token: "{$CF_API_TOKEN}"
+#   zone: "example.com"
+# The provider reads these names, so they match the plugin, not this role.
+caddy_tls_dns_options: {}
+# When caddy_tls_dns_provider is empty and caddy_http_port is set, Caddy binds
+# http://<host>:<port> (plain HTTP, auto_https off) for an upstream
+# TLS-terminating proxy. Ignored when a TLS provider is configured.
+caddy_http_port: ""
+# List of site blocks. Each entry:
+#   domain: the hostname to serve
+#   redirect: target hostname (for redirect sites)
+#   reverse_proxy: upstream address (for proxy sites)
+#   host_header: optional Host header override for reverse_proxy sites
+#   strip_origin: drop the Origin header on reverse_proxy sites, default false
+caddy_sites: []
+
+# Container deployment.
+caddy_container_image: "docker.io/caddy:2"
+# Build a local image that bundles a DNS provider plugin. The context in
+# files/caddy-image takes the plugin list through
+# caddy_container_image_build_args.
+caddy_container_image_build_enabled: false
+caddy_container_image_build_context: "caddy-image"
+caddy_container_image_build_file: "Containerfile"
+# Extra `podman build` arguments. The bundled context reads CADDY_PLUGINS,
+# a list of `--with` arguments for xcaddy, for example
+#   - --build-arg
+#   - CADDY_PLUGINS=--with github.com/caddy-dns/cloudflare
+caddy_container_image_build_args: []
+caddy_container_name: "caddy"
+# Name of the systemd unit that runs the container.
+caddy_container_service_name: "caddy"
+caddy_container_manage_service: true
+# Environment variables passed to the container. Caddy reads {$NAME}
+# placeholders in the Caddyfile from these variables. The role writes them to
+# caddy_container_env_file with mode 0600, because values are often secrets.
+caddy_container_env: {}
+caddy_container_env_file: "{{ caddy_data_dir }}/container.env"
+# Secret files written before the container starts, each a mapping of
+#   dest: path on the host
+#   content: file contents, keep it in an encrypted variable file
+caddy_container_secret_files: []
+# Extra volumes passed to the container, as podman --volume strings.
+caddy_container_volumes: []
+caddy_container_memory: "512m"
+caddy_container_cpus: "1.0"
+caddy_container_pids_limit: 128
+caddy_container_security_options:
+  - "no-new-privileges:true"
+# NET_BIND_SERVICE binds :80/:443; SETUID/SETGID serve the root-to-caddy drop.
+caddy_container_cap_drop:
+  - "NET_RAW"
+  - "MKNOD"
+  - "AUDIT_WRITE"
+  - "SETFCAP"
+  - "SYS_CHROOT"
+# kill: systemd's Restart=always recreates the container once unhealthy.
+caddy_container_healthcheck_cmd: "wget -q -O /dev/null -T 5 http://127.0.0.1:2019/config/"
+caddy_container_healthcheck_interval: "30s"
+caddy_container_healthcheck_timeout: "15s"
+caddy_container_healthcheck_retries: 3
+caddy_container_healthcheck_start_period: "30s"
+caddy_container_healthcheck_on_failure: "kill"
+
+# Container runtime. Each container role has its own copy, so a host can run
+# containers for one role and not for another.
+caddy_container_runtime_binary: "/usr/bin/podman"
+# systemd container socket service, without .service, for example podman-api.
+caddy_container_runtime_api_service: ""

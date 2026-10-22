@@ -1,0 +1,275 @@
+---
+- name: Check the caddy container platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['service_mgr'] | default('') == 'systemd'
+    fail_msg: >-
+      The caddy container deployment needs systemd. Use a host that runs
+      systemd and gather facts on it, or remove this role from the host.
+    quiet: true
+
+- name: Check that caddy sites are configured
+  ansible.builtin.assert:
+    that:
+      - caddy_sites | length > 0
+    fail_msg: >-
+      Set caddy_sites before you deploy the caddy container.
+    quiet: true
+
+- name: Check that caddy can serve traffic
+  ansible.builtin.assert:
+    that:
+      - caddy_tls_dns_provider | length > 0 or caddy_http_port | length > 0
+    fail_msg: >-
+      Set caddy_tls_dns_provider for automatic HTTPS, or caddy_http_port for
+      plain HTTP behind a TLS-terminating proxy.
+    quiet: true
+
+- name: Ensure caddy group exists
+  become: true
+  ansible.builtin.group:
+    name: "{{ caddy_group }}"
+    system: true
+  when: caddy_manage_user
+
+- name: Ensure caddy user exists
+  become: true
+  ansible.builtin.user:
+    name: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+  when: caddy_manage_user
+
+- name: Ensure caddy data directories exist
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0750"
+  loop:
+    - "{{ caddy_data_dir }}"
+    - "{{ caddy_config_dir }}"
+    - "{{ caddy_data_dir }}/data"
+    - "{{ caddy_data_dir }}/config"
+
+- name: Ensure caddy secret file directories exist
+  become: true
+  ansible.builtin.file:
+    path: "{{ item.dest | dirname }}"
+    state: directory
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0750"
+  loop: "{{ caddy_container_secret_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  no_log: true
+
+- name: Write caddy secret files
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ item.dest }}"
+    content: "{{ item.content }}"
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0600"
+  loop: "{{ caddy_container_secret_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  diff: false
+  no_log: true
+  notify: Restart caddy container
+
+- name: Ensure caddy container environment file directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ caddy_container_env_file | dirname }}"
+    state: directory
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0750"
+
+- name: Deploy caddy container environment file
+  become: true
+  ansible.builtin.template:
+    src: "caddy.env.j2"
+    dest: "{{ caddy_container_env_file }}"
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0600"
+  diff: false
+  no_log: true
+  notify: Restart caddy container
+
+- name: Ensure caddy image build directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ caddy_data_dir }}/image-builds"
+    state: directory
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0750"
+
+- name: Copy caddy image build context
+  become: true
+  ansible.builtin.copy:
+    src: "{{ caddy_container_image_build_context }}/"
+    dest: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/"
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: preserve
+  when: caddy_container_image_build_enabled
+  register: caddy_container_image_context
+
+- name: Read recorded caddy image build inputs
+  become: true
+  ansible.builtin.slurp:
+    src: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/build-inputs.json"
+  register: caddy_container_image_build_inputs_recorded
+  failed_when: false
+  when: caddy_container_image_build_enabled
+
+# The recorded file is written only after a successful build, so a failed
+# build leaves it stale and the next run retries.
+- name: Compare caddy image build inputs
+  ansible.builtin.set_fact:
+    caddy_container_image_build_inputs_changed: >-
+      {{ (caddy_container_image_build_inputs_recorded.content
+          | default('e30=', true) | b64decode | from_json)
+         != {'args': caddy_container_image_build_args,
+             'file': caddy_container_image_build_file,
+             'image': caddy_container_image} }}
+  when: caddy_container_image_build_enabled
+
+- name: Read caddy image build pending marker
+  become: true
+  ansible.builtin.stat:
+    path: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/.build-pending"
+  register: caddy_container_image_build_pending
+  when: caddy_container_image_build_enabled
+
+# Build when the context, the recorded build inputs, a pending failed build or
+# the image name changed, and when the image is absent. An unchanged build
+# rebuilds from cache, which still prints COMMIT and restarts caddy needlessly.
+- name: Read caddy image id before build
+  become: true
+  ansible.builtin.command:
+    cmd: >-
+      {{ caddy_container_runtime_binary }} images --no-trunc --quiet
+      {{ caddy_container_image }}
+  register: caddy_container_image_id_before
+  changed_when: false
+  when:
+    - caddy_container_image_build_enabled
+    - not ansible_check_mode
+
+# A failed build leaves no other trace, so record the attempt and clear it only
+# after a successful build.
+- name: Mark caddy image build pending
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/.build-pending"
+    content: "pending\n"
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0640"
+  when:
+    - caddy_container_image_build_enabled
+    - not ansible_check_mode
+    - caddy_container_image_build_pending.stat.exists or
+      caddy_container_image_context.changed or
+      caddy_container_image_build_inputs_changed | bool or
+      caddy_container_image_id_before.stdout | length == 0
+
+- name: Build caddy image
+  become: true
+  ansible.builtin.command:
+    argv: >-
+      {{ [caddy_container_runtime_binary, 'build', '--format', 'docker',
+          '-f', caddy_container_image_build_filepath,
+          '-t', caddy_container_image]
+         + caddy_container_image_build_args
+         + [caddy_container_image_build_dir] }}
+  register: caddy_container_image_build
+  vars:
+    caddy_container_image_build_dir: >-
+      {{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}
+    caddy_container_image_build_filepath: >-
+      {{ caddy_container_image_build_dir }}/{{ caddy_container_image_build_file }}
+  # A context edit that touches only comments rebuilds from cache and re-tags
+  # the same id, so the log always reports COMMIT. Compare ids so the handler
+  # restarts caddy only for a real image change. `podman images --quiet`
+  # prefixes the digest with `sha256:`; the build's trailing id line does
+  # not.
+  changed_when: >-
+    caddy_container_image_build.stdout_lines[-1] !=
+    (caddy_container_image_id_before.stdout | replace('sha256:', ''))
+  when:
+    - caddy_container_image_build_enabled
+    - not ansible_check_mode
+    - caddy_container_image_build_pending.stat.exists or
+      caddy_container_image_context.changed or
+      caddy_container_image_build_inputs_changed | bool or
+      caddy_container_image_id_before.stdout | length == 0
+  notify: Restart caddy container
+
+- name: Record caddy image build inputs
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/build-inputs.json"
+    content: >-
+      {{ {
+           'args': caddy_container_image_build_args,
+           'file': caddy_container_image_build_file,
+           'image': caddy_container_image,
+         } | to_nice_json }}
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0640"
+  when:
+    - caddy_container_image_build_enabled
+    - not ansible_check_mode
+    - caddy_container_image_build is not skipped
+
+- name: Remove caddy image build pending marker
+  become: true
+  ansible.builtin.file:
+    path: "{{ caddy_data_dir }}/image-builds/{{ caddy_container_image_build_context }}/.build-pending"
+    state: absent
+  when:
+    - caddy_container_image_build_enabled
+    - not ansible_check_mode
+    - caddy_container_image_build is not skipped
+
+- name: Deploy Caddyfile
+  become: true
+  ansible.builtin.template:
+    src: "Caddyfile.j2"
+    dest: "{{ caddy_config_dir }}/Caddyfile"
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: "0640"
+  notify: Restart caddy container
+
+- name: Deploy caddy container service
+  become: true
+  ansible.builtin.template:
+    src: "caddy.service.j2"
+    dest: "/etc/systemd/system/{{ caddy_container_service_name }}.service"
+    mode: "0644"
+  notify: Restart caddy container
+
+- name: Ensure caddy container service is running
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ caddy_container_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when:
+    - caddy_container_manage_service
+    - not ansible_check_mode
