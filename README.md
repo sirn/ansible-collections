@@ -1,51 +1,94 @@
 # sirn.collections
 
-Personal Ansible collection of OS-agnostic roles for FreeBSD and OpenBSD hosts.
-Service roles supervise their processes with
-[s6](https://www.skarnet.org/software/s6/) on FreeBSD.
+Ansible collection of infrastructure roles for FreeBSD, OpenBSD, and Debian
+hosts. Roles are grouped by domain: platform configuration, services,
+observability, container services, and clusters.
+
+Each role supports the platforms listed in its own `meta/main.yml`. A role
+dispatches to a task file for the platform or the deployment method, so one
+role name covers every supported target.
+
+## Supervision
+
+Service roles use the supervisor that the target platform provides:
+
+- **FreeBSD**: service roles supervise processes with
+  [s6](https://www.skarnet.org/software/s6/) when the `s6` variable is set.
+- **Linux**: container roles run a Podman container under systemd.
+
+Each container role has a deployment flag, for example `caddy_deploy_container`
+or `oauth2_proxy_deploy_container`. The flag defaults to `false`. The role fails
+when the flag is `false`.
+
+Container settings follow these naming rules:
+
+- Container-only settings carry the role prefix, for example
+  `caddy_container_image` or `oauth2_proxy_container_image`.
+- Container runtime settings carry the role prefix too, for example
+  `caddy_container_runtime_binary` or
+  `oauth2_proxy_container_runtime_api_service`. A host can run containers for
+  one role and not for another.
+- Method-independent settings use the role prefix without `container_`, for
+  example `caddy_sites` or `oauth2_proxy_instances`.
 
 ## Installation
 
-Add the collection to `requirements.yml`:
+- From `requirements.yml`:
 
-```yaml
-- name: sirn.collections
-  src: https://github.com/sirn/ansible-collections
-  type: git
-```
+  ```yaml
+  collections:
+    - name: https://github.com/sirn/ansible-collections
+      type: git
+  ```
 
-or build and install it from source:
+- From source:
 
-```bash
-ansible-galaxy collection build
-ansible-galaxy collection install sirn-collections-1.0.0.tar.gz
-```
+  ```bash
+  ansible-galaxy collection build
+  ansible-galaxy collection install sirn-collections-1.0.0.tar.gz
+  ```
 
 ## Usage
 
 Use the collection namespace to select roles:
 
 ```yaml
-- hosts: freebsd
+- hosts: bsd_hosts
   roles:
     - role: sirn.collections.hardening
     - role: sirn.collections.pf
 ```
 
-Service roles supervise their process with s6 when the `s6` flag is set:
+Set `s6` on a service role to supervise the service on a supported BSD host:
 
 ```yaml
-- hosts: freebsd
+- hosts: bsd_hosts
   roles:
     - role: sirn.collections.haproxy
       vars:
         s6: true
 ```
 
+Set the deployment flag of a container role to run the container under
+systemd:
+
+```yaml
+- hosts: linux_hosts
+  roles:
+    - role: sirn.collections.caddy
+      vars:
+        caddy_deploy_container: true
+        caddy_http_port: "8080"
+        caddy_sites:
+          - domain: app.example.com
+            reverse_proxy: 127.0.0.1:4180
+```
+
 ## Task selection
 
-Use these tags through the normal role entry point on configured FreeBSD
-hosts with `s6: true`:
+These tags select part of a role. Run them through the normal role entry point
+on a host where the role is already configured, and with `s6: true` on hosts
+that use s6 supervision:
 
 | Tag | Selected tasks |
 |-----|----------------|
@@ -58,9 +101,9 @@ hosts with `s6: true`:
 | `sanoidconfig` | Replace Sanoid configuration and ensure state directory |
 | `sanoidhooks` | Generate Sanoid dataset and template hook scripts |
 
-Configuration changes notify the role's service handlers. These tags do not
-install service packages or change supervision. Database dependencies must
-be installed before the `mysql_users` tasks can run.
+Configuration changes notify the role's service handlers. The tags replace
+configuration only. Install service packages and change supervision through the
+full role. Install the database dependencies before the `mysql_users` tasks run.
 
 ## Role structure
 
@@ -75,48 +118,76 @@ when s6 supervision is enabled:
 ```
 
 Only implemented entry points are shipped, for example `main_freebsd.yml`,
-`main_openbsd.yml`, and `main_freebsd_s6.yml`.
+`main_openbsd.yml`, `main_debian.yml`, and `main_freebsd_s6.yml`. Roles with a
+single implementation keep their tasks in `tasks/main.yml`.
 
 ## Roles
 
 ### Platform configuration
 
-- [`hardening`](roles/hardening/README.md) — harden a host (SSH, sudo, sysctl, accounting)
-- [`ntpd`](roles/ntpd/README.md) — configure the base ntpd time synchronization on FreeBSD
-- [`openntpd`](roles/openntpd/README.md) — configure OpenNTPd on FreeBSD or OpenBSD
-- [`pf`](roles/pf/README.md) — configure the pf firewall
-- [`racct`](roles/racct/README.md) — enable FreeBSD resource limits
-- [`tuning`](roles/tuning/README.md) — tune FreeBSD kernel and boot parameters
-- [`s6`](roles/s6/README.md) — install and enable the s6 supervisor on FreeBSD
+| Role | Platforms | Description |
+|------|-----------|-------------|
+| [`hardening`](roles/hardening/README.md) | FreeBSD, OpenBSD | Harden a host (SSH, sudo, sysctl, accounting) |
+| [`ntpd`](roles/ntpd/README.md) | FreeBSD | Base ntpd time synchronization |
+| [`openntpd`](roles/openntpd/README.md) | FreeBSD, OpenBSD | OpenNTPd time synchronization |
+| [`pf`](roles/pf/README.md) | FreeBSD, OpenBSD | pf firewall |
+| [`racct`](roles/racct/README.md) | FreeBSD | FreeBSD resource limits |
+| [`tuning`](roles/tuning/README.md) | FreeBSD | FreeBSD kernel and boot parameters |
+| [`wireguard`](roles/wireguard/README.md) | FreeBSD, Debian | WireGuard tunnel interfaces |
+| [`s6`](roles/s6/README.md) | FreeBSD | Install and enable the s6 supervisor |
 
-### Services (s6-supervised on FreeBSD)
+### Services
 
-- [`dehydrated`](roles/dehydrated/README.md) — Let's Encrypt certificate provisioning
-- [`duplicity`](roles/duplicity/README.md) — encrypted periodic backups
-- [`haproxy`](roles/haproxy/README.md) — HAProxy load balancer
-- [`hitch`](roles/hitch/README.md) — TLS termination proxy
-- [`mrtg`](roles/mrtg/README.md) — network traffic monitoring
-- [`mysql`](roles/mysql/README.md) — MariaDB database server
-- [`nginx`](roles/nginx/README.md) — web server
-- [`openssh`](roles/openssh/README.md) — OpenSSH server via pkg
-- [`php`](roles/php/README.md) — PHP-FPM runtime
-- [`postgresql`](roles/postgresql/README.md) — PostgreSQL database server
-- [`redis`](roles/redis/README.md) — Redis key-value store
-- [`sanoid`](roles/sanoid/README.md) — ZFS snapshot management
-- [`varnish`](roles/varnish/README.md) — Varnish cache
-- [`victoria_metrics`](roles/victoria_metrics/README.md) — single-node metrics storage
-- [`victoria_logs`](roles/victoria_logs/README.md) — single-node log storage
-- [`vlagent`](roles/vlagent/README.md) — file collection and queued log delivery
-- [`vmagent`](roles/vmagent/README.md) — metrics scraping and queued remote write
-- [`grafana`](roles/grafana/README.md) — dashboards and datasource provisioning
-- [`grafana_victorialogs_plugin`](roles/grafana_victorialogs_plugin/README.md) — local VictoriaLogs plugin build and installation
-- [`blackbox_exporter`](roles/blackbox_exporter/README.md) — HTTP endpoint probes
-- [`node_exporter`](roles/node_exporter/README.md) — FreeBSD host metrics
-- [`mysqld_exporter`](roles/mysqld_exporter/README.md) — MySQL and MariaDB metrics
-- [`redis_exporter`](roles/redis_exporter/README.md) — Redis metrics
-- [`php_fpm_exporter`](roles/php_fpm_exporter/README.md) — PHP-FPM pool metrics
-- [`nginx_exporter`](roles/nginx_exporter/README.md) — nginx stub-status metrics
-- [`varnish_exporter`](roles/varnish_exporter/README.md) — Varnish metrics
+| Role | Platforms | Description |
+|------|-----------|-------------|
+| [`dehydrated`](roles/dehydrated/README.md) | FreeBSD, OpenBSD | Let's Encrypt certificate provisioning |
+| [`dhparam`](roles/dhparam/README.md) | FreeBSD | Mozilla ffdhe2048 DH parameter file |
+| [`dnsmasq`](roles/dnsmasq/README.md) | FreeBSD | Forwarding DNS resolver with split-horizon records |
+| [`duplicity`](roles/duplicity/README.md) | FreeBSD | Encrypted periodic backups |
+| [`haproxy`](roles/haproxy/README.md) | FreeBSD | HAProxy load balancer |
+| [`hitch`](roles/hitch/README.md) | FreeBSD | TLS termination proxy |
+| [`mysql`](roles/mysql/README.md) | FreeBSD | MariaDB database server |
+| [`nginx`](roles/nginx/README.md) | FreeBSD | Web server |
+| [`openssh`](roles/openssh/README.md) | FreeBSD | OpenSSH server via pkg |
+| [`php`](roles/php/README.md) | FreeBSD | PHP-FPM runtime |
+| [`postgresql`](roles/postgresql/README.md) | FreeBSD | PostgreSQL database server |
+| [`redis`](roles/redis/README.md) | FreeBSD | Redis key-value store |
+| [`sanoid`](roles/sanoid/README.md) | FreeBSD | ZFS snapshot management |
+| [`varnish`](roles/varnish/README.md) | FreeBSD | Varnish cache |
+
+### Observability
+
+| Role | Platforms | Description |
+|------|-----------|-------------|
+| [`victoria_metrics`](roles/victoria_metrics/README.md) | FreeBSD | Single-node metrics storage |
+| [`victoria_logs`](roles/victoria_logs/README.md) | FreeBSD | Single-node log storage |
+| [`vmagent`](roles/vmagent/README.md) | FreeBSD | Metrics scraping and queued remote write |
+| [`vlagent`](roles/vlagent/README.md) | FreeBSD | File collection and queued log delivery |
+| [`grafana`](roles/grafana/README.md) | FreeBSD | Dashboards and datasource provisioning |
+| [`grafana_victorialogs_plugin`](roles/grafana_victorialogs_plugin/README.md) | FreeBSD | Local VictoriaLogs plugin build and installation |
+| [`blackbox_exporter`](roles/blackbox_exporter/README.md) | FreeBSD | HTTP endpoint probes |
+| [`node_exporter`](roles/node_exporter/README.md) | FreeBSD | Host metrics |
+| [`mysqld_exporter`](roles/mysqld_exporter/README.md) | FreeBSD | MySQL and MariaDB metrics |
+| [`redis_exporter`](roles/redis_exporter/README.md) | FreeBSD | Redis metrics |
+| [`php_fpm_exporter`](roles/php_fpm_exporter/README.md) | FreeBSD | PHP-FPM pool metrics |
+| [`nginx_exporter`](roles/nginx_exporter/README.md) | FreeBSD | nginx stub-status metrics |
+| [`varnish_exporter`](roles/varnish_exporter/README.md) | FreeBSD | Varnish metrics |
+| [`mrtg`](roles/mrtg/README.md) | FreeBSD | Network traffic monitoring |
+
+### Container services
+
+Roles that run services in Podman containers under systemd.
+
+| Role | Platforms | Description |
+|------|-----------|-------------|
+| [`caddy`](roles/caddy/README.md) | Linux with containers | Shared TLS ingress and reverse proxy |
+| [`oauth2_proxy`](roles/oauth2_proxy/README.md) | Linux with containers | Per-instance authentication front |
+
+### Clusters
+
+| Role | Platforms | Description |
+|------|-----------|-------------|
+| [`rke2`](roles/rke2/README.md) | Debian | RKE2 server and agent nodes |
 
 ## Development
 
