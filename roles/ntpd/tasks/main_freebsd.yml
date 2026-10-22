@@ -22,6 +22,35 @@
   notify:
     - start ntpdate
 
+- name: check for a leftover s6 service
+  ansible.builtin.stat:
+    path: /var/service/ntpd
+  register: ntpd_s6_service
+
+# Turning the s6 flag off must leave a single supervisor behind. Wait for the
+# supervised process to exit, so the rc service can start.
+- name: stop the leftover s6 service
+  become: true
+  ansible.builtin.command: s6-svc -d /var/service/ntpd
+  when: ntpd_s6_service.stat.exists
+
+- name: wait for the leftover s6 service to stop
+  become: true
+  ansible.builtin.command: s6-svwait -d /var/service/ntpd
+  when: ntpd_s6_service.stat.exists
+
+- name: remove the leftover s6 service
+  become: true
+  ansible.builtin.file:
+    path: /var/service/ntpd
+    state: absent
+  when: ntpd_s6_service.stat.exists
+
+- name: rescan the s6 service directory
+  become: true
+  ansible.builtin.command: s6-svscanctl -an /var/service
+  when: ntpd_s6_service.stat.exists
+
 - name: enable ntpd
   become: true
   ansible.builtin.service:

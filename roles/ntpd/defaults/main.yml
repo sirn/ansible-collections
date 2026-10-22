@@ -3,3 +3,13 @@ ntpd_pools:
   - pool.ntp.org
 
 ntpd_servers:
+
+# ntpd runs as root. It needs root to bind UDP 123 and step the clock with
+# -g; running as the ntpd user requires the mac_ntpd MAC policy, which is
+# not loaded.
+ntpd_logger: |
+  #!/usr/local/bin/execlineb -P
+  s6-log -b n10 s1000000 t !"gzip -nq9" /var/log/ntpd/
+
+# S6 supervision is disabled by default. Enable it to supervise this service.
+s6: false

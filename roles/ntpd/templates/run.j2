@@ -1,0 +1,9 @@
+#!/usr/local/bin/execlineb -P
+emptyenv
+fdmove -c 2 1
+/usr/sbin/ntpd
+    -n
+    -g
+    -p /var/db/ntp/ntpd.pid
+    -c /etc/ntp.conf
+    -f /var/db/ntp/ntpd.drift

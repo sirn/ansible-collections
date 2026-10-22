@@ -1,0 +1,88 @@
+---
+## Configure
+##
+
+- name: configure ntpd
+  become: true
+  ansible.builtin.template:
+    src: ntp.conf.j2
+    dest: /etc/ntp.conf
+    mode: "0644"
+  notify:
+    - rescan ntpd s6
+    - restart ntpd s6
+
+- name: enable ntpdate
+  become: true
+  ansible.builtin.service:
+    name: ntpdate
+    enabled: true
+  notify:
+    - start ntpdate
+
+## Supervise
+##
+
+- name: read ntpd rc enable state
+  become: true
+  ansible.builtin.command:
+    cmd: sysrc -n ntpd_enable
+  register: ntpd_rc_enable
+  changed_when: false
+  failed_when: false
+
+# The rc script stops the daemon through its pid file, which also matches the
+# s6-owned process. Disable the rc service at boot and stop it once, while it
+# is still enabled, so s6 is the only supervisor.
+- name: disable ntpd rc service
+  become: true
+  ansible.builtin.service:
+    name: ntpd
+    state: stopped
+    enabled: false
+  when: >-
+    ntpd_rc_enable.stdout | default('') | trim | lower
+    not in ['', 'no', 'false', 'off', '0']
+  register: disable_rc_ntpd
+  failed_when:
+    - disable_rc_ntpd is failed
+    - "'not running' not in disable_rc_ntpd.msg | lower"
+  notify:
+    - rescan ntpd s6
+
+- name: ensure ntpd service directories
+  become: true
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: "0755"
+  with_items:
+    - /var/service/ntpd
+    - /var/service/ntpd/log
+
+- name: install ntpd service
+  become: true
+  ansible.builtin.template:
+    src: run.j2
+    dest: /var/service/ntpd/run
+    mode: "0555"
+  notify:
+    - rescan ntpd s6
+    - restart ntpd s6
+
+- name: install ntpd s6 logging service
+  become: true
+  ansible.builtin.copy:
+    dest: /var/service/ntpd/log/run
+    mode: "0555"
+    content: "{{ ntpd_logger }}"
+  notify:
+    - rescan ntpd s6
+    - restart ntpd logger s6
+
+## Per-role flush
+##
+
+- name: flush handler
+  become: true
+  ansible.builtin.meta: flush_handlers
