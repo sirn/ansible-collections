@@ -146,6 +146,14 @@ nginx_http: true
 
 Enable the `http` block in `nginx.conf`.
 
+#### nginx_http2
+
+```yaml
+nginx_http2: true
+```
+
+Enable HTTP/2 on listeners for sites with `secure: true`. Disabling it also removes the deprecated `listen` parameter, which no directive can override.
+
 #### nginx_http_port
 
 ```yaml

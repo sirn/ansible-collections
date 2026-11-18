@@ -38,6 +38,8 @@ nginx_keepalive_timeout: 120
 
 nginx_http: true
 
+nginx_http2: true
+
 nginx_http_port: 80
 
 nginx_https_port: 443
